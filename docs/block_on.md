@@ -34,3 +34,6 @@ We can call the function cheapo_request from an ordinary, synchronous function(l
 So in summary, the block_on function in used to execute asynchronous block synchronousely in rust.
 
 
+
+
+
