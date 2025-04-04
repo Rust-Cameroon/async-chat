@@ -1,19 +1,19 @@
-## **Link Time Optimizations**
+# Link Time Optimization (LTO) Setup  
 
-This project is optimized for faster build and link times using high-performance linkers. Faster linking improves compilation speed, especially for large projects.
+This project is configured for faster build and link times using high-performance linkers. These linkers significantly reduce compilation time, improving the development workflow, especially for large Rust projects. 
 
 ### **Supported Linkers by Platform**
 
-- **Linux (`x86_64-unknown-linux-gnu`)** – [`mold`](https://github.com/rui314/mold): a fast, parallel linker.  
-- **macOS (`x86_64-apple-darwin`)** – [`lld`](https://lld.llvm.org/): the LLVM linker.  
-- **Windows (`x86_64-pc-windows-msvc`)** – [`lld-link`](https://lld.llvm.org/): MSVC-compatible linker from LLVM.
+- **Linux (`x86_64-unknown-linux-gnu`)**: Uses [**mold**](https://github.com/rui314/mold), a lightning-fast linker optimized for multicore performance. 
+- **macOS (`x86_64-apple-darwin`)**: Uses [**lld**](https://lld.llvm.org/), the LLVM project’s high-performance linker known for it's efficiency.  
+- **Windows (`x86_64-pc-windows-msvc`)**: Uses [**lld-link**](https://lld.llvm.org/), the MSVC-compatible linker from the LLVM project known for its performance and compatibility.
 
 ---
 
 ## **Installation Instructions**
 
 ### Linux
-To install the `mold` linker, you can use `apt` package manager ship with Debian and Debian-based distributions.
+To install the `mold` linker, You can use the `apt` package manager available on Debian and Ubuntu-based distributions.
 Additionally, clang is required as the linker driver to use `mold`
 
 ```sh
