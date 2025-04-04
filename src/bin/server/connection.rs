@@ -1,18 +1,18 @@
 use crate::group_table::GroupTable;
-use async_chat::utils::{self, ChatResult};
+use async_chat::utils::{self};
 use async_chat::{FromClient, FromServer};
 use async_std::io::BufReader;
 use async_std::net::TcpStream;
 use async_std::prelude::*;
+use async_std::sync::Mutex;
 use async_std::sync::Arc;
 
-pub struct Outbound(Mutex<TcpStream>);
-pub struct Outbound(Mutex<TcpStream>);
+pub struct Outbound(Mutex<TcpStream>); 
 impl Outbound {
     pub fn new(to_client: TcpStream) -> Outbound {
         Outbound(Mutex::new(to_client))
     }
-    pub async fn send(&self, packet: FromServer) -> ChatResult<()> {
+    pub async fn send(&self, packet: FromServer) -> anyhow::Result<()> {
         let mut guard = self.0.lock().await;
         utils::send_as_json(&mut *guard, &packet).await?;
         guard.flush().await?;
@@ -20,7 +20,7 @@ impl Outbound {
     }
 }
 
-pub async fn serve(socket: TcpStream, groups: Arc<GroupTable>) -> ChatResult<()> {
+pub async fn serve(socket: TcpStream, groups: Arc<GroupTable>) -> anyhow::Result<()> {
     // wrapping our connection in outbound so as to have exclusive access to it in the groups and avoid interference
     let outbound = Arc::new(Outbound::new(socket.clone()));
     let buffered = BufReader::new(socket);

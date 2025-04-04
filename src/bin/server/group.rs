@@ -19,3 +19,11 @@ impl Group {
         let _ignored = self.sender.send(message);
     }
 }
+
+async fn handle_subscriber(
+    group_name: Arc<String>,
+    mut receiver: broadcast::Receiver<Arc<String>>,
+    outbound: Arc<Outbound>,
+) {
+    todo!()
+}
