@@ -1,23 +1,28 @@
-# Link Time Optimizations  
+## **Link Time Optimizations**
 
-This project is optimized for faster build and link times by using high-performance linkers. Faster linking significantly reduces compilation time, improving the development workflow, especially for large projects.  
+This project is optimized for faster build and link times using high-performance linkers. Faster linking improves compilation speed, especially for large projects.
 
-## **Supported Linkers by Platform**  
+### **Supported Linkers by Platform**
 
-- **Linux (`x86_64-unknown-linux-gnu`)**: Uses `mold`, a high-speed linker optimized for parallel processing.  
-- **macOS (`x86_64-apple-darwin`)**: Uses `lld`, the LLVM linker known for its efficiency and performance.  
+- **Linux (`x86_64-unknown-linux-gnu`)** – [`mold`](https://github.com/rui314/mold): a fast, parallel linker.  
+- **macOS (`x86_64-apple-darwin`)** – [`lld`](https://lld.llvm.org/): the LLVM linker.  
+- **Windows (`x86_64-pc-windows-msvc`)** – [`lld-link`](https://lld.llvm.org/): MSVC-compatible linker from LLVM.
 
-## **Installation Instructions**  
+---
 
-### **Linux (Ubuntu/Debian-based)**  
+## **Installation Instructions**
+
+### Linux
 To install the `mold` linker, you can use `apt` package manager ship with Debian and Debian-based distributions.
+Additionally, clang is required as the linker driver to use `mold`
 
 ```sh
 sudo apt update
-sudo apt install mold clang  
+sudo apt install mold clang
 ```
+For other Linux distributions or package managers, refer to the [official mold installation guide](https://github.com/rui314/mold/blob/master/README.md).
 
-### **macOS**  
+### macOS
 Ensure Xcode Command Line Tools are installed, then install `lld` via Homebrew:
 
 ```sh
@@ -25,26 +30,42 @@ xcode-select --install  # Install Xcode Command Line Tools
 brew install lld        # Install lld  
 ```
 
-## **Verification**  
 
-Ensure the linkers are correctly installed:  
+### Windows
 
-```sh
-mold --version  # Linux  
-lld --version   # macOS  
+1. [Download LLVM (Pre-built binaries)](https://github.com/llvm/llvm-project/releases) and install it (choose the version with `lld-link.exe`).
+2. Add LLVM to your system PATH:
+
+```powershell
+$llvmPath = "C:\Program Files\LLVM\bin"
+[Environment]::SetEnvironmentVariable("Path", $Env:Path + ";$llvmPath", [EnvironmentVariableTarget]::Machine)
 ```
 
-## **Testing the Setup**  
+Then restart your terminal.
 
-To confirm `mold` is being used, inspect the `.comment` section of a compiled executable:  
+---
+
+## **Verify Installation**
 
 ```sh
-readelf -p .comment <executable-file>
+mold --version        # Linux
+lld --version         # macOS
+lld-link --version    # Windows
 ```
 
-If `mold` is used, you should see an entry similar to:  
+---
+
+## **Test Linker Usage**
+
+For Linux (mold), confirm it’s being used via:
 
 ```sh
+readelf -p .comment <path-to-executable>
+```
+
+Look for:
+
+```
 String dump of section '.comment':
-  [    2b]  mold 9a1679b47d9b22012ec7dfbda97c8983956716f7
+  [002b]  mold xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
