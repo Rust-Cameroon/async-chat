@@ -4,15 +4,18 @@ use async_chat::{FromClient, FromServer};
 use async_std::io::BufReader;
 use async_std::net::TcpStream;
 use async_std::prelude::*;
-use async_std::sync::Mutex;
-use async_std::sync::Arc;
+use async_std::sync::{Arc, Mutex};
+use anyhow::{bail, Result};
 
+/// Wraps a TCP connection to a client, allowing safe async writes.
 pub struct Outbound(Mutex<TcpStream>); 
+
 impl Outbound {
-    pub fn new(to_client: TcpStream) -> Outbound {
-        Outbound(Mutex::new(to_client))
+    pub fn new(to_client: TcpStream) -> Self {
+        Self(Mutex::new(to_client))
     }
-    pub async fn send(&self, packet: FromServer) -> anyhow::Result<()> {
+
+    pub async fn send(&self, packet: FromServer) -> Result<()> {
         let mut guard = self.0.lock().await;
         utils::send_as_json(&mut *guard, &packet).await?;
         guard.flush().await?;
@@ -20,15 +23,15 @@ impl Outbound {
     }
 }
 
-pub async fn serve(socket: TcpStream, groups: Arc<GroupTable>) -> anyhow::Result<()> {
-    // wrapping our connection in outbound so as to have exclusive access to it in the groups and avoid interference
+/// Handles a new client connection, listens for messages, and interacts with group logic.
+pub async fn serve(socket: TcpStream, groups: Arc<GroupTable>) -> Result<()> {
     let outbound = Arc::new(Outbound::new(socket.clone()));
     let buffered = BufReader::new(socket);
-    // receive data from clients
     let mut from_client = utils::receive_as_json(buffered);
+
     while let Some(request_result) = from_client.next().await {
         let request = request_result?;
-        let result = match request {
+        let result: Result<()> = match request {
             FromClient::Join { group_name } => {
                 let group = groups.get_or_create(group_name);
                 group.join(outbound.clone());
@@ -42,15 +45,16 @@ pub async fn serve(socket: TcpStream, groups: Arc<GroupTable>) -> anyhow::Result
                     group.post(message);
                     Ok(())
                 }
-                None => Err(format!("Group '{}' does not exist", group_name)),
+                None => bail!("Group '{}' does not exist", group_name),
             },
         };
-        // not a valid request
+
         if let Err(message) = result {
-            let report = FromServer::Error(message);
-            // send error back to client
+            let report = FromServer::Error(message.to_string());
             outbound.send(report).await?;
         }
     }
+
+    println!("Client disconnected.");
     Ok(())
 }
