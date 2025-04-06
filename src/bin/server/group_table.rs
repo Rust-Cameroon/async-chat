@@ -1,6 +1,9 @@
+#![allow(clippy::new_without_default)] // Suppresses Clippy warning
+
 use crate::group::Group;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+
 pub struct GroupTable(Mutex<HashMap<Arc<String>, Arc<Group>>>);
 
 impl GroupTable {
@@ -19,5 +22,12 @@ impl GroupTable {
             .entry(name.clone())
             .or_insert_with(|| Arc::new(Group::new(name)))
             .clone()
+    }
+}
+
+// Implement Default to satisfy Clippy's `new_without_default` lint
+impl Default for GroupTable {
+    fn default() -> Self {
+        Self::new()
     }
 }

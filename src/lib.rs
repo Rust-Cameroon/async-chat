@@ -3,8 +3,6 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 pub mod utils;
 
-
-
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum FromClient {
     Join {

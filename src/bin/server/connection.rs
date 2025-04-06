@@ -4,12 +4,19 @@ use async_chat::{FromClient, FromServer};
 use async_std::io::BufReader;
 use async_std::net::TcpStream;
 use async_std::prelude::*;
+
 use async_std::sync::{Arc, Mutex};
 use anyhow::{bail, Result};
 
 /// Wraps a TCP connection to a client, allowing safe async writes.
 pub struct Outbound(Mutex<TcpStream>); 
 
+
+
+use async_std::sync::Arc;
+use async_std::sync::Mutex;
+
+pub struct Outbound(Mutex<TcpStream>);
 
 impl Outbound {
     pub fn new(to_client: TcpStream) -> Self {

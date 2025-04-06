@@ -1,12 +1,11 @@
 pub mod connection;
-pub mod group_table;
 pub mod group;
+pub mod group_table;
 
 use connection::serve;
 
-
-use async_std::prelude::*;
 use async_std::net::TcpListener;
+use async_std::prelude::*;
 use async_std::task;
 use std::sync::Arc;
 
