@@ -2,7 +2,7 @@
 
 ## Introduction
 
-  Broadcasting is a means of communication whereby information is transferred from a single producer to multiple consumers or receivers. Here , Broadcast channels are the channels through which broadcasting occurs.
+  Broadcasting is a means of communication whereby information is transferred from a single or multiple producers to one or more consumers or receivers. Here , Broadcast channels are the channels through which broadcasting occurs.  
 
 
 ## Why broadcasting 
@@ -28,7 +28,7 @@
 - ### Data Isolation
   When using a broadcast channel, each user receives their own copy of the data, preventing shared access that could lead to data races.
 
-- ### Concurrency Managemen
+- ### Concurrency Management
   Even though broadcast channels work with MPSC (Multiple Producer, Single Consumer), they allow multiple users to send messages by cloning the user. This reduces potential issues that may arise if two users attempt to send messages simultaneously.
 
 - ### Offline Message Retrieval
