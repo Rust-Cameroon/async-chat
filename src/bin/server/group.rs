@@ -21,11 +21,15 @@ impl Group {
         let (sender, _receiver) = broadcast::channel(1000); // buffer size of 1000 messages
         Group { name, sender }
     }
-    /// Adds a new outbound client to the group, subscribing them to messages.
+    /// Adds a client connection to the group and starts sending messages to it.
     ///
     /// # Arguments
     ///
     /// * `outbound` - The client connection to receive messages.
+    ///
+    /// This function spawns a background task to handle receiving messages from the
+    /// broadcast channel and forwarding them to the client. A task is used so that
+    /// the message receiving loop can run asynchronously without blocking the caller.
     pub fn join(&self, outbound: Arc<Outbound>) {
         let receiver = self.sender.subscribe();
         task::spawn(handle_subscriber(self.name.clone(), receiver, outbound));
