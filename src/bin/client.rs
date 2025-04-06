@@ -12,9 +12,9 @@ fn main() -> anyhow::Result<()> {
 
     task::block_on(async {
         let socket = net::TcpStream::connect(address).await?;
-        socket.set_nodelay(true)?; // Disable Nagle's algorithm for lower latency
+        socket.set_nodelay(true)?; // Disable Nagle's algorithm for lower latency.
 
-        // Race two futures: sending commands vs. receiving server messages
+        // Race two futures: sending commands vs. receiving server.
         let to_server = send_commands(socket.clone());
         let from_server = handle_replies(socket);
 
