@@ -24,7 +24,6 @@ where
 ///
 /// # Returns
 /// A stream of parsed packets of type `P`.
-
 pub fn receive_as_json<S, P>(inbound: S) -> impl Stream<Item = anyhow::Result<P>>
 where
     S: async_std::io::BufRead + Unpin,

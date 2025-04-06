@@ -9,7 +9,6 @@ use async_std::sync::Mutex;
 
 /// Represents a thread-safe outbound connection to a client.
 /// This struct wraps a `TcpStream` in a `Mutex` to provide a safe and exclusive way to send data to the client.
-
 pub struct Outbound(Mutex<TcpStream>);
 impl Outbound {
     /// Creates a new `Outbound` connection.
