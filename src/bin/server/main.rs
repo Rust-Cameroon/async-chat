@@ -23,7 +23,7 @@ fn main() -> anyhow::Result<()> {
     async_std::task::block_on(async {
         let listener = TcpListener::bind(address).await?;
         let mut new_connections = listener.incoming();
-        // Accept incoming connections and spawn a task to handle each
+        // Accept incoming connections and spawn an asynchronous task to handle each
         while let Some(socket_result) = new_connections.next().await {
             let socket = socket_result?;
             let groups = chat_group_table.clone();
