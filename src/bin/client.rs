@@ -23,7 +23,7 @@ fn main() -> anyhow::Result<()> {
     })
 }
 
-/// /// Reads user input (planned via `clap`) and sends commands to the server.
+/// Reads user input (planned via `clap`) and sends commands to the server.
 async fn send_commands(_to_server: net::TcpStream) -> anyhow::Result<()> {
     // TODO: Implement use clap to parse command line arguments and print help message
     todo!()
