@@ -45,7 +45,10 @@ impl Outbound {
 ///
 /// # Errors
 ///
-/// Returns an error if reading from the socket or sending a message fails.
+/// Returns an error if:
+/// - Reading from the socket fails
+/// - Sending a message fails
+/// - A user tries to post to a group that does not exist
 pub async fn serve(socket: TcpStream, groups: Arc<GroupTable>) -> anyhow::Result<()> {
     // wrapping our connection in outbound so as to have exclusive access to it in the groups and avoid interference
     let outbound = Arc::new(Outbound::new(socket.clone()));
