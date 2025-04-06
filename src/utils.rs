@@ -1,6 +1,11 @@
 use async_std::prelude::*;
 use serde::de::DeserializeOwned;
 
+/// Sends a serializable packet as a JSON-encoded line over a writable stream.
+///
+/// # Arguments
+/// * `outbound` - The writable stream to send through.
+/// * `packet` - The serializable data to be sent.
 pub async fn send_as_json<S, P>(outbound: &mut S, packet: &P) -> anyhow::Result<()>
 where
     S: async_std::io::Write + Unpin,
@@ -11,6 +16,14 @@ where
     outbound.write_all(json.as_bytes()).await?;
     Ok(())
 }
+
+/// Returns a stream of deserialized packets from a buffered input stream.
+///
+/// # Arguments
+/// * `inbound` - A stream of lines containing JSON messages.
+///
+/// # Returns
+/// A stream of parsed packets of type `P`.
 
 pub fn receive_as_json<S, P>(inbound: S) -> impl Stream<Item = anyhow::Result<P>>
 where
