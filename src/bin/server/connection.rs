@@ -9,8 +9,7 @@ use async_std::sync::{Arc, Mutex};
 use anyhow::{bail, Result};
 
 /// Wraps a TCP connection to a client, allowing safe async writes.
-pub struct Outbound(Mutex<TcpStream>); 
-
+pub struct Outbound(Mutex<TcpStream>);
 
 
 use async_std::sync::Arc;
@@ -39,16 +38,14 @@ pub async fn serve(socket: TcpStream, groups: Arc<GroupTable>) -> Result<()> {
 
     while let Some(request_result) = from_client.next().await {
         let request = request_result?;
+
         let result: Result<()> = match request {
             FromClient::Join { group_name } => {
                 let group = groups.get_or_create(group_name);
                 group.join(outbound.clone());
                 Ok(())
             }
-            FromClient::Post {
-                group_name,
-                message,
-            } => match groups.get(&group_name) {
+            FromClient::Post { group_name, message } => match groups.get(&group_name) {
                 Some(group) => {
                     group.post(message);
                     Ok(())
