@@ -10,6 +10,7 @@ use anyhow::{bail, Result};
 /// Wraps a TCP connection to a client, allowing safe async writes.
 pub struct Outbound(Mutex<TcpStream>); 
 
+
 impl Outbound {
     pub fn new(to_client: TcpStream) -> Self {
         Self(Mutex::new(to_client))
