@@ -1,27 +1,32 @@
 #![allow(clippy::new_without_default)] // Suppresses Clippy warning
 
 use crate::group::Group;
+use async_std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
-pub struct GroupTable(Mutex<HashMap<Arc<String>, Arc<Group>>>);
+pub struct GroupTable {
+    groups: Mutex<HashMap<Arc<String>, Arc<Group>>>,
+}
 
 impl GroupTable {
     pub fn new() -> GroupTable {
-        GroupTable(Mutex::new(HashMap::new()))
+        GroupTable {
+            groups: Mutex::new(HashMap::new()),
+        }
     }
 
-    pub fn get(&self, name: &String) -> Option<Arc<Group>> {
-        self.0.lock().unwrap().get(name).cloned()
+    pub async fn get(&self, name: &Arc<String>) -> Option<Arc<Group>> {
+        let groups = self.groups.lock().await;
+        groups.get(name).cloned()
     }
 
-    pub fn get_or_create(&self, name: Arc<String>) -> Arc<Group> {
-        self.0
-            .lock()
-            .unwrap()
-            .entry(name.clone())
-            .or_insert_with(|| Arc::new(Group::new(name)))
-            .clone()
+    pub async fn get_or_create(&self, name: Arc<String>) -> Arc<Group> {
+        let mut groups = self.groups.lock().await;
+        groups.get(&name).cloned().unwrap_or_else(|| {
+            let group = Arc::new(Group::new(name.clone()));
+            groups.insert(name, group.clone());
+            group
+        })
     }
 }
 

@@ -3,6 +3,12 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 pub mod utils;
 
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct User {
+    pub username: Arc<String>,
+    pub id: Arc<String>,
+}
+
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum FromClient {
     Join {
@@ -12,15 +18,29 @@ pub enum FromClient {
         group_name: Arc<String>,
         message: Arc<String>,
     },
+    Register {
+        username: Arc<String>,
+        password: Arc<String>,
+    },
+    Login {
+        username: Arc<String>,
+        password: Arc<String>,
+    },
+    Logout,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum FromServer {
     Message {
         group_name: Arc<String>,
         message: Arc<String>,
+        sender: User,
     },
     Error(String),
+    AuthSuccess {
+        user: User,
+    },
+    AuthError(String),
 }
 
 #[cfg(test)]
