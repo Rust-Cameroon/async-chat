@@ -56,7 +56,9 @@ jobs:
       run: cargo doc --workspace --all-features --no-deps
 
     - name: Install cargo-audit
-      run: cargo install cargo-audit --force
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-audit
 
     - name: Run Security Audit
       run: cargo audit
