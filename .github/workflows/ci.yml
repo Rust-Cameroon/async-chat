@@ -56,7 +56,7 @@ jobs:
       run: cargo doc --workspace --all-features --no-deps
 
     - name: Install cargo-audit
-      run: cargo install cargo-audit
+      run: cargo install cargo-audit --force
 
     - name: Run Security Audit
       run: cargo audit
