@@ -28,7 +28,7 @@ async fn send_commands(_to_server: net::TcpStream) -> anyhow::Result<()> {
     // TODO: Implement use clap to parse command line arguments and print help message
     todo!()
 }
-/// Handles responses from the server and prints them to stdout.
+/// Handles responses from the server and prints them to stdout as they arrive.
 async fn handle_replies(from_server: net::TcpStream) -> anyhow::Result<()> {
     let buffered = BufReader::new(from_server);
     let mut reply_stream = utils::receive_as_json(buffered);
