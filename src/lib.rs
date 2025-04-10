@@ -1,25 +1,33 @@
+//! # async-chat
+//!
+//! A simple async group chat system implemented in Rust, using `async-std` for concurrency.
+//! This crate defines the message formats and utility functions used by both the client and server.
+
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 pub mod utils;
 
+/// Messages that clients can send to the server.
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum FromClient {
-    Join {
-        group_name: Arc<String>,
-    },
+    /// Join a group by name.
+    Join { group_name: Arc<String> },
+    /// Post a message to a group.
     Post {
         group_name: Arc<String>,
         message: Arc<String>,
     },
 }
-
+/// Messages that the server sends back to clients.
 #[derive(Debug, Deserialize, Serialize)]
 pub enum FromServer {
+    /// A message has been posted to a group.
     Message {
         group_name: Arc<String>,
         message: Arc<String>,
     },
+    /// The server encountered an error.
     Error(String),
 }
 
