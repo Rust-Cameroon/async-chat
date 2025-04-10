@@ -21,6 +21,12 @@ if ! command -v cargo-audit &> /dev/null; then
     cargo install cargo-audit
 fi
 
+# Ensure cargo-nextest is installed
+if ! command -v cargo-nextest &> /dev/null; then
+    echo "Installing cargo-nextest..."
+    cargo install cargo-nextest --locked
+fi
+
 # Run all CI steps locally
 echo "Checking Formatting..."
 cargo fmt --all -- --check || (echo "Formatting issues found, please run 'cargo fmt' to auto-fix." && exit 1)
