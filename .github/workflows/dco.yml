@@ -1,0 +1,36 @@
+name:  DCO Check
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  dco-check:
+    name:  Verify DCO Sign-off
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name:  Get latest commit message
+        id: get_commit
+        run: |
+          message=$(git log -1 --pretty=format:"%B")
+          echo "commit_msg<<EOF" >> $GITHUB_OUTPUT
+          echo "$message" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name:  Check for Signed-off-by line
+        run: |
+          echo " Checking commit message:"
+          echo "${{ steps.get_commit.outputs.commit_msg }}"
+          if [[ "${{ steps.get_commit.outputs.commit_msg }}" != *"Signed-off-by:"* ]]; then
+            echo " DCO sign-off missing!"
+            exit 1
+          else
+            echo " DCO sign-off present."
+          fi
+
