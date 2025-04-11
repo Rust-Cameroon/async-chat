@@ -1,11 +1,7 @@
 # Code of Conduct
 
 ## Our Pledge
-<<<<<<< HEAD
-In the interest of fostering an open and welcoming environment, we as contributors, maintainers, and members of [async chat library], an async chat library built in Rust, pledge to make participation in our project and community a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, nationality, personal appearance, race, religion, sexual identity and orientation, or other characteristics.
-=======
 In the interest of fostering an open and welcoming environment, we as contributors, maintainers, and members of [async chat library](https://github.com/Rust-Cameroon/async-chat), an async chat library built in Rust, pledge to make participation in our project and community a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, nationality, personal appearance, race, religion, sexual identity and orientation, or other characteristics.
->>>>>>> ea827d9 (Update CODE_OF_CONDUCT.md with latest changes)
 
 We commit to acting and interacting in ways that promote an inclusive, respectful, and healthy community.
 
@@ -46,11 +42,8 @@ It also applies when an individual represents the project in public spaces, such
 Representation may be further defined by maintainers.
 
 ## Enforcement
-<<<<<<< HEAD
-Instances of abusive, harassing, or unacceptable behavior may be reported to the project maintainers at [yemelechristian2@gmail.com],[abonghoderick@gmail.com] or via a private GitHub Issue/Discussion. All complaints will be reviewed and investigated promptly and fairly, with a response appropriate to the circumstances. Maintainers are obligated to maintain confidentiality regarding the reporter of any incident.
-=======
 Instances of abusive, harassing, or unacceptable behavior may be reported to this [email](inforustcameroon@gmail.com) or via a private GitHub Issue/Discussion. All complaints will be reviewed and investigated promptly and fairly, with a response appropriate to the circumstances. Maintainers are obligated to maintain confidentiality regarding the reporter of any incident.
->>>>>>> ea827d9 (Update CODE_OF_CONDUCT.md with latest changes)
+
 
 ### Enforcement Process
 - **Correction**: For minor issues (e.g., inappropriate language), maintainers will issue a private warning, explaining the violation and requesting correction. A public apology may be encouraged.
@@ -66,8 +59,5 @@ We aim to go beyond technical excellence. Avoid sensitive or offensive topics th
 ## Attribution
 This Code of Conduct is adapted from:
 - [Contributor Covenant, version 1.4](http://contributor-covenant.org/version/1/4).
-<<<<<<< HEAD
 - [Rust Code of Conduct](https://www.rust-lang.org/policies/code-of-conduct).
-=======
-- [Rust Code of Conduct](https://www.rust-lang.org/policies/code-of-conduct).
->>>>>>> ea827d9 (Update CODE_OF_CONDUCT.md with latest changes)
+
