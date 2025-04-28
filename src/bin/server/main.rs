@@ -38,7 +38,6 @@ fn main() -> anyhow::Result<()> {
 /// Logs errors from client handler tasks.
 fn log_error(result: anyhow::Result<()>) {
     if let Err(error) = result {
-        eprintln!("Error: {}", error);
+        eprintln!("Error: {:?}", error);
     }
 }
-
