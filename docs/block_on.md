@@ -1,5 +1,7 @@
 # Overview of block_on function
+
 ## What's block_on
+
 The block_on function is a synchronous function that produces a final value of an asynchronous function, 
 
 you can think of it as an adapter from the asynchronous world to the synchronous world. The block_on 
@@ -7,6 +9,7 @@ you can think of it as an adapter from the asynchronous world to the synchronous
 function is part of the tokio or async-std crates, not part of the standard library.
 
 ## Why block_on 
+
 In a sense, asynchronous function just pass the buck, this buck is simply due to the fact that, when 
 
 executing a synchronous function: the caller only resumes when the operation is completed, what if we 
