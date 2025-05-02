@@ -27,7 +27,7 @@ there are finished and poll it again, and this somehow ruin the simplicity of th
 
 asynchronous function is there, this buck is solved using .await expression which pause the execution of 
 
-this async function until the awaited value is ready before resuming back it execution.  it's true that 
+this async function until the awaited value is ready before resuming back it execution. it's true that 
 
 it easy to get the value of an async function: just await it. But async function itself return a future, 
 
