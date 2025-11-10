@@ -1,7 +1,13 @@
 #![allow(dead_code, unused_variables, unused_mut)] // Suppresses warnings
 
 use async_chat::{FromClient, FromServer, utils};
-use async_std::{io::{BufReader, BufReadExt, stdin}, net, prelude::FutureExt, stream::StreamExt, task};
+use async_std::{
+    io::{BufReadExt, BufReader, stdin},
+    net,
+    prelude::FutureExt,
+    stream::StreamExt,
+    task,
+};
 use std::sync::Arc;
 
 /// Client binary for connecting to the async chat server.
@@ -25,7 +31,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 /// Reads user input and sends commands to the server.
-/// 
+///
 /// Commands:
 /// - `/join <group_name>` - Join a chat group
 /// - `/post <group_name> <message>` - Post a message to a group
@@ -85,15 +91,15 @@ async fn send_commands(to_server: net::TcpStream) -> anyhow::Result<()> {
 }
 
 /// Parses a command line input into a FromClient message.
-/// 
+///
 /// # Arguments
 /// * `input` - The user input string to parse
-/// 
+///
 /// # Returns
 /// A Result containing either a FromClient message or an error string
 fn parse_command(input: &str) -> Result<FromClient, String> {
     let parts: Vec<&str> = input.splitn(3, ' ').collect();
-    
+
     match parts.as_slice() {
         ["/join", group_name] => {
             if group_name.is_empty() {
@@ -118,7 +124,10 @@ fn parse_command(input: &str) -> Result<FromClient, String> {
         ["/join"] => Err("Usage: /join <group_name>".to_string()),
         ["/post"] => Err("Usage: /post <group_name> <message>".to_string()),
         ["/post", _] => Err("Usage: /post <group_name> <message>".to_string()),
-        _ => Err(format!("Unknown command: '{}'. Type /help for available commands.", input)),
+        _ => Err(format!(
+            "Unknown command: '{}'. Type /help for available commands.",
+            input
+        )),
     }
 }
 
@@ -166,7 +175,10 @@ mod tests {
         let result = parse_command("/post general Hello world!");
         assert!(result.is_ok());
         match result.unwrap() {
-            FromClient::Post { group_name, message } => {
+            FromClient::Post {
+                group_name,
+                message,
+            } => {
                 assert_eq!(*group_name, "general".to_string());
                 assert_eq!(*message, "Hello world!".to_string());
             }

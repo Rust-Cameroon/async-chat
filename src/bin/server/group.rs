@@ -54,7 +54,7 @@ async fn handle_subscriber(
     outbound: Arc<Outbound>,
 ) {
     use async_chat::FromServer;
-    
+
     loop {
         match receiver.recv().await {
             Ok(message) => {
@@ -62,23 +62,33 @@ async fn handle_subscriber(
                     group_name: group_name.clone(),
                     message,
                 };
-                
+
                 // Send the message to the client
                 if let Err(e) = outbound.send(server_message).await {
-                    eprintln!("Failed to send message to client in group '{}': {}", group_name, e);
+                    eprintln!(
+                        "Failed to send message to client in group '{}': {}",
+                        group_name, e
+                    );
                     break; // Exit the loop if we can't send to the client
                 }
             }
             Err(broadcast::error::RecvError::Lagged(skipped)) => {
                 // Client was too slow, some messages were skipped
-                eprintln!("Client in group '{}' lagged behind, skipped {} messages", group_name, skipped);
-                
-                let error_message = FromServer::Error(
-                    format!("You were lagging behind and missed {} messages", skipped)
+                eprintln!(
+                    "Client in group '{}' lagged behind, skipped {} messages",
+                    group_name, skipped
                 );
-                
+
+                let error_message = FromServer::Error(format!(
+                    "You were lagging behind and missed {} messages",
+                    skipped
+                ));
+
                 if let Err(e) = outbound.send(error_message).await {
-                    eprintln!("Failed to send lag error to client in group '{}': {}", group_name, e);
+                    eprintln!(
+                        "Failed to send lag error to client in group '{}': {}",
+                        group_name, e
+                    );
                     break;
                 }
             }
@@ -89,6 +99,6 @@ async fn handle_subscriber(
             }
         }
     }
-    
+
     eprintln!("Subscriber handler for group '{}' exited", group_name);
 }
