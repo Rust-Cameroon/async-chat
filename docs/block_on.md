@@ -1,6 +1,6 @@
 # Overview of block_on function
 
-## What's block_on
+## What is block_on
 
 The block_on function is a synchronous function that produces a final value of an asynchronous function, 
 you can think of it as an adapter from the asynchronous world to the synchronous world. The block_on 
@@ -8,13 +8,9 @@ function is part of the tokio or async-std crates, not part of the standard libr
 
 ## Why block_on 
 
-In a sense, asynchronous function just pass the buck, this buck is simply due to the fact that, when 
-executing a synchronous function: the caller only resumes when the operation is completed, what if we 
-want our thread to do something else while the operating system is doing his work, we will need to use 
-new I/O library that provides an asynchronous version of this function, Rust approach of supporting 
-asynchronous operation is by introducing a trait, std::future::Future.
+In a sense, asynchronous functions just pass the buck. This buck is simply due to the fact that when executing a synchronous function, the caller only resumes when the operation is completed. What if we want our thread to do something else while the operating system is doing its work? We will need to use a new I/O library that provides an asynchronous version of this function. Rust's approach to supporting asynchronous operations is by introducing a trait: std::future::Future.
 
-A Future represent an operation you can test for completion. So with Future, you can always know the state of the current thread inother to do other jobs, but using futures seems challenging because, you keep on polling other jobs while a future is still pending, keeping track of previous futures who are pending and what should be done once there are finished and poll it again, and this somehow ruin the simplicity of the function. Good news, asynchronous function is there, this buck is solved using .await expression which pause the execution of this async function until the awaited value is ready before resuming back it execution. it's true that it easy to get the value of an async function: just await it. But async function itself return a future, so it's now the caller's job to do the polling somehow, thus someone has to wait for value and in this case block_on is our waiter. 
+A Future represents an operation you can test for completion. So with Future, you can always know the state of the current thread in order to do other jobs, but using futures seems challenging because you keep on polling other jobs while a future is still pending, keeping track of previous futures that are pending and what should be done once they are finished and poll it again, and this somehow ruins the simplicity of the function. Good news: asynchronous functions are there! This buck is solved using the .await expression which pauses the execution of this async function until the awaited value is ready before resuming its execution. It's true that it's easy to get the value of an async function: just await it. But async functions themselves return a future, so it's now the caller's job to do the polling somehow, thus someone has to wait for the value and in this case block_on is our waiter. 
 
 Consider the example below:
 ```sh
@@ -41,10 +37,6 @@ fn main() -> std::io::Result<()> {
 }
 ```
 
-We can call the function cheapo_request from an ordinary, synchronous function(like the main, for 
-example), using the async_std's task::block_on function, which takes a future and poll it until it return 
-a value as seen above.
+We can call the function cheapo_request from an ordinary, synchronous function (like main, for example), using async_std's task::block_on function, which takes a future and polls it until it returns a value as seen above.
 
-So in summary, the block_on function is used to execute asynchronous block synchronously in rust.
-
-
+So in summary, the block_on function is used to execute asynchronous blocks synchronously in Rust.
