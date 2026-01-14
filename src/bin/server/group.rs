@@ -33,6 +33,7 @@ impl Group {
 
     /// Posts a message to the group, broadcasting it to all subscribers.
     pub fn post(&self, author: Arc<String>, message: Arc<String>) {
+        eprintln!("Server: Group '{}' broadcasting message from '{}'", self.name, author);
         let _ = self.sender.send(ChatMessage { author, message });
     }
 }
@@ -48,6 +49,7 @@ async fn handle_subscriber(
     loop {
         match receiver.recv().await {
             Ok(packet) => {
+                eprintln!("Server: Subscriber in '{}' received message from '{}'", group_name, packet.author);
                 let server_message = FromServer::Message {
                     group_name: group_name.clone(),
                     author: packet.author,
