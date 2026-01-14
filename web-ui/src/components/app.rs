@@ -150,14 +150,14 @@ fn handle_server_message(message: FromServer, state: &UseStateHandle<AppState>) 
         }
     }
 
-    state.set(current_state);
+    state.set(AppState { ..current_state });
 }
 
 /// Handle connection status changes
 fn handle_connection_status_change(status: ConnectionStatus, state: &UseStateHandle<AppState>) {
     let mut current_state = (*state).clone();
     current_state.connection_status = status;
-    state.set(current_state);
+    state.set(AppState { ..current_state });
 }
 
 #[cfg(test)]
