@@ -24,8 +24,16 @@ fn main() -> anyhow::Result<()> {
         while let Some(socket_result) = new_connections.next().await {
             let socket = socket_result?;
             let groups = chat_group_table.clone();
-            task::spawn(async {
-                log_error(serve(socket, groups).await);
+            task::spawn(async move {
+                let ws_result = async_tungstenite::accept_async(socket).await;
+                match ws_result {
+                    Ok(ws) => {
+                        log_error(serve(ws, groups).await);
+                    }
+                    Err(e) => {
+                        eprintln!("WebSocket handshake error: {:?}", e);
+                    }
+                }
             });
         }
         Ok(())
