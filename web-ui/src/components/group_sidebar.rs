@@ -11,7 +11,7 @@ pub struct GroupSidebarProps {
 }
 
 #[styled_component(GroupSidebar)]
-pub fn GroupSidebar(props: &GroupSidebarProps) -> Html {
+pub fn group_sidebar(props: &GroupSidebarProps) -> Html {
     let sidebar_style = stylist::Style::new(
         r#"
         .sidebar {
