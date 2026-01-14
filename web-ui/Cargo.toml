@@ -6,7 +6,6 @@ authors = ["Christian yemele <yemelechristian2@gmail.com>"]
 
 [dependencies]
 yew = { version = "0.21", features = ["csr"] }
-web-sys = "0.3"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 gloo-net = "0.5"
