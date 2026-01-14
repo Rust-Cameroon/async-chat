@@ -169,7 +169,6 @@ pub fn app() -> Html {
         let group_ref = group_ref.clone();
         let name_ref = name_ref.clone();
         let tx = tx.clone();
-        let chat_state = chat_state.clone();
         Callback::from(move |_: MouseEvent| {
             let input_el = input_ref.cast::<HtmlInputElement>().expect("input exists");
             let group_el = group_ref.cast::<HtmlInputElement>().expect("group exists");
@@ -182,15 +181,11 @@ pub fn app() -> Html {
             if message.is_empty() || group_name.is_empty() { return; }
             
             if let Some(sender) = &*tx {
-                let display_name = if user_name.is_empty() { "Me".to_string() } else { user_name };
-                
-                // Locally add the message so it shows up immediately (optimistic UI)
-                // But wait, the server will broadcast it back. 
-                // Currently our server broadcasts EVERYTHING to EVERYONE in the group.
-                // To avoid duplication, we could either not add it locally, or filter it.
-                // Let's just let the server broadcast it back for now to keep it simple.
-                
-                let msg_text = if user_name.is_empty() { message.clone() } else { format!("{}: {}", user_name, message) };
+                let msg_text = if user_name.is_empty() { 
+                    message 
+                } else { 
+                    format!("{}: {}", user_name, message) 
+                };
 
                 let post_msg = FromClient::Post { 
                     group_name: Arc::new(group_name),
