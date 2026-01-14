@@ -15,7 +15,7 @@ pub struct ChatRoomProps {
 }
 
 #[styled_component(ChatRoom)]
-pub fn ChatRoom(props: &ChatRoomProps) -> Html {
+pub fn chat_room(props: &ChatRoomProps) -> Html {
     let chat_room_style = stylist::Style::new(
         r#"
         .chat-room {
