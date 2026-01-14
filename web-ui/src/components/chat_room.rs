@@ -2,8 +2,8 @@ use crate::types::{ChatMessage, Theme};
 use stylist::yew::styled_component;
 use yew::prelude::*;
 
-use super::MessageInput;
-use super::MessageList;
+use super::message_input::MessageInput;
+use super::message_list::MessageList;
 
 #[derive(Properties, PartialEq)]
 pub struct ChatRoomProps {
