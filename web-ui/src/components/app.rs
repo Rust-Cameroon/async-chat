@@ -76,8 +76,8 @@ pub fn app() -> Html {
         let tx = tx.clone();
         
         Callback::from(move |_: MouseEvent| {
-            let group_name = group_ref.cast::<HtmlInputElement>().expect("input exists").value();
-            let user_name = name_ref.cast::<HtmlInputElement>().expect("name exists").value();
+            let group_name = group_ref.cast::<HtmlInputElement>().expect("input exists").value().trim().to_string();
+            let user_name = name_ref.cast::<HtmlInputElement>().expect("name exists").value().trim().to_string();
             let my_name = if user_name.is_empty() { "Me".to_string() } else { user_name };
 
             if group_name.is_empty() { return; }
@@ -180,22 +180,28 @@ pub fn app() -> Html {
             let name_el = name_ref.cast::<HtmlInputElement>().expect("name exists");
             
             let message = input_el.value();
-            let group_name = group_el.value();
-            let user_name = name_el.value();
+            let group_name = group_el.value().trim().to_string();
+            let user_name = name_el.value().trim().to_string();
             
             if message.is_empty() || group_name.is_empty() { return; }
             
             if let Some(sender) = &*tx {
                 let my_name = if user_name.is_empty() { "Me".to_string() } else { user_name };
+                web_sys::console::log_1(&format!("UI: Sending Post to '{}' as '{}': {}", group_name, my_name, message).into());
 
                 let post_msg = FromClient::Post { 
                     group_name: Arc::new(group_name),
                     author: Arc::new(my_name),
                     message: Arc::new(message)
                 };
-                if let Ok(_) = sender.unbounded_send(post_msg) {
+                if let Err(e) = sender.unbounded_send(post_msg) {
+                    web_sys::console::error_1(&format!("UI Error: Failed to queue message: {:?}", e).into());
+                } else {
+                    web_sys::console::log_1(&"UI: Message queued successfully".into());
                     input_el.set_value("");
                 }
+            } else {
+                web_sys::console::warn_1(&"UI Warning: Not connected (tx is None), cannot send".into());
             }
         })
     };
