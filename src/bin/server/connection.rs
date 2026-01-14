@@ -51,10 +51,11 @@ pub async fn serve(socket: WebSocketStream<TcpStream>, groups: Arc<GroupTable>) 
                             }
                             FromClient::Post {
                                 group_name,
+                                author,
                                 message,
                             } => match groups.get(&group_name) {
                                 Some(group) => {
-                                    group.post(message);
+                                    group.post(author, message);
                                     Ok(())
                                 }
                                 None => Err(format!("Group '{}' does not exist", group_name)),
