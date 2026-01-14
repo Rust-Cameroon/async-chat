@@ -53,7 +53,7 @@ pub async fn serve(socket: WebSocketStream<TcpStream>, groups: Arc<GroupTable>) 
                                 group_name,
                                 author,
                                 message,
-                            } => {
+\                            } => {
                                 eprintln!("Server: Received Post to group '{}' from '{}': {}", group_name, author, message);
                                 match groups.get(&group_name) {
                                     Some(group) => {
