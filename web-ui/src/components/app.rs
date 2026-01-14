@@ -28,7 +28,6 @@ pub fn app() -> Html {
             if group_name.is_empty() { return; }
             
             if let Some(sender) = &*tx {
-                // If already connected, just send join msg
                 let _ = sender.unbounded_send(FromClient::Join { group_name: Arc::new(group_name) });
                 return;
             }
