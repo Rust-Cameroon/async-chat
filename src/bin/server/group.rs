@@ -5,62 +5,53 @@ use async_std::task;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
+/// A packet sent over the group's broadcast channel.
+#[derive(Clone, Debug)]
+pub struct ChatMessage {
+    pub author: Arc<String>,
+    pub message: Arc<String>,
+}
+
 /// A named group that broadcasts messages to all connected subscribers.
 pub struct Group {
     name: Arc<String>,
-    sender: broadcast::Sender<Arc<String>>,
+    sender: broadcast::Sender<ChatMessage>,
 }
 
 impl Group {
     /// Creates a new `Group` with a given name.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - The name of the group.
     pub fn new(name: Arc<String>) -> Group {
         let (sender, _receiver) = broadcast::channel(1000); // buffer size of 1000 messages
         Group { name, sender }
     }
+
     /// Adds a client connection to the group and starts sending messages to it.
-    ///
-    /// # Arguments
-    ///
-    /// * `outbound` - The client connection to receive messages.
-    ///
-    /// This function spawns a background task to handle receiving messages from the
-    /// broadcast channel and forwarding them to the client. A task is used so that
-    /// the message receiving loop can run asynchronously without blocking the caller.
     pub fn join(&self, outbound: Arc<Outbound>) {
         let receiver = self.sender.subscribe();
         task::spawn(handle_subscriber(self.name.clone(), receiver, outbound));
     }
+
     /// Posts a message to the group, broadcasting it to all subscribers.
-    ///
-    /// # Arguments
-    ///
-    /// * `message` - The message to broadcast.
-    pub fn post(&self, message: Arc<String>) {
-        let _ = self.sender.send(message); // Ignoring the result to suppress warning
+    pub fn post(&self, author: Arc<String>, message: Arc<String>) {
+        let _ = self.sender.send(ChatMessage { author, message });
     }
 }
 
 /// Handles the lifecycle of a subscriber: receiving messages and sending them over their connection.
-///
-/// Receives messages from the broadcast channel and forwards them to the client connection.
-/// Exits when the client disconnects or an error occurs.
 async fn handle_subscriber(
     group_name: Arc<String>,
-    mut receiver: broadcast::Receiver<Arc<String>>,
+    mut receiver: broadcast::Receiver<ChatMessage>,
     outbound: Arc<Outbound>,
 ) {
     use async_chat::FromServer;
 
     loop {
         match receiver.recv().await {
-            Ok(message) => {
+            Ok(packet) => {
                 let server_message = FromServer::Message {
                     group_name: group_name.clone(),
-                    message,
+                    author: packet.author,
+                    message: packet.message,
                 };
 
                 // Send the message to the client
@@ -69,9 +60,10 @@ async fn handle_subscriber(
                         "Failed to send message to client in group '{}': {}",
                         group_name, e
                     );
-                    break; // Exit the loop if we can't send to the client
+                    break; 
                 }
             }
+// ... (rest remains same)
             Err(broadcast::error::RecvError::Lagged(skipped)) => {
                 // Client was too slow, some messages were skipped
                 eprintln!(
