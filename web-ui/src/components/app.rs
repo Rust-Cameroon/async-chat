@@ -58,7 +58,7 @@ pub fn app_component() -> Html {
 
     html! {
                 <div class="app-container">
-                    <style>{STYLES}</style>
+                    <style>{styles::global::STYLES}</style>
 
                     <header
                 current_user={current_state.current_user.clone()}
