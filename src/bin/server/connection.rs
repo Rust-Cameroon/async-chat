@@ -1,34 +1,24 @@
 use crate::group_table::GroupTable;
 use async_chat::{FromClient, FromServer};
 use async_std::net::TcpStream;
-use async_std::prelude::*;
 use async_std::sync::Arc;
 use async_std::sync::Mutex;
 use async_tungstenite::tungstenite::Message;
 use async_tungstenite::WebSocketStream;
+use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
 
 /// Represents a thread-safe outbound connection to a client.
-/// This struct wraps a `WebSocketStream` in a `Mutex` to provide a safe and exclusive way to send data to the client.
-pub struct Outbound(Mutex<WebSocketStream<TcpStream>>);
+/// This struct wraps the write-half (Sink) of a `WebSocketStream` in a `Mutex`.
+pub struct Outbound(Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>);
+
 impl Outbound {
-    /// Creates a new `Outbound` connection.
-    ///
-    /// # Arguments
-    ///
-    /// * `to_client` - The WebSocket stream to write to.
-    pub fn new(to_client: WebSocketStream<TcpStream>) -> Outbound {
-        Outbound(Mutex::new(to_client))
+    /// Creates a new `Outbound` connection from a WebSocket sink.
+    pub fn new(sink: SplitSink<WebSocketStream<TcpStream>, Message>) -> Outbound {
+        Outbound(Mutex::new(sink))
     }
+
     /// Sends a message to the connected client in JSON format.
-    ///
-    /// # Arguments
-    ///
-    /// * `packet` - The message to send, wrapped in the `FromServer` enum.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if writing or flushing to the stream fails.
     pub async fn send(&self, packet: FromServer) -> anyhow::Result<()> {
         let mut guard = self.0.lock().await;
         let json = serde_json::to_string(&packet)?;
@@ -38,59 +28,53 @@ impl Outbound {
 }
 
 /// Serves a single client connection by reading messages and interacting with group state.
-///
-/// # Arguments
-///
-/// * `socket` - The WebSocket connection to the client.
-/// * `groups` - A shared reference to the server's group table.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - Reading from the socket fails
-/// - Sending a message fails
-/// - A user tries to post to a group that does not exist
 pub async fn serve(socket: WebSocketStream<TcpStream>, groups: Arc<GroupTable>) -> anyhow::Result<()> {
-    // wrapping our connection in outbound so as to have exclusive access to it in the groups and avoid interference
-    let outbound = Arc::new(Outbound::new(socket));
+    let (sink, mut stream) = socket.split();
+    let outbound = Arc::new(Outbound::new(sink));
     
     // receive data from clients
-    loop {
-        let msg_result = {
-            let mut guard = outbound.0.lock().await;
-            guard.next().await
-        };
-        
+    while let Some(msg_result) = stream.next().await {
         match msg_result {
-            Some(Ok(Message::Text(text))) => {
-                let request: FromClient = serde_json::from_str(&text)?;
-                let result = match request {
-                    FromClient::Join { group_name } => {
-                        let group = groups.get_or_create(group_name);
-                        group.join(outbound.clone());
-                        Ok(())
-                    }
-                    FromClient::Post {
-                        group_name,
-                        message,
-                    } => match groups.get(&group_name) {
-                        Some(group) => {
-                            group.post(message);
-                            Ok(())
+            Ok(Message::Text(text)) => {
+                // If the message is empty or just whitespace, skip it
+                if text.trim().is_empty() {
+                    continue;
+                }
+
+                match serde_json::from_str::<FromClient>(&text) {
+                    Ok(request) => {
+                        let result = match request {
+                            FromClient::Join { group_name } => {
+                                let group = groups.get_or_create(group_name);
+                                group.join(outbound.clone());
+                                Ok(())
+                            }
+                            FromClient::Post {
+                                group_name,
+                                message,
+                            } => match groups.get(&group_name) {
+                                Some(group) => {
+                                    group.post(message);
+                                    Ok(())
+                                }
+                                None => Err(format!("Group '{}' does not exist", group_name)),
+                            },
+                        };
+                        // If an error occurred (logical error), send an error message back to the client
+                        if let Err(message) = result {
+                            let report = FromServer::Error(message);
+                            outbound.send(report).await?;
                         }
-                        None => Err(format!("Group '{}' does not exist", group_name)),
-                    },
-                };
-                // If an error occurred, send an error message back to the client
-                if let Err(message) = result {
-                    let report = FromServer::Error(message);
-                    // send error back to client
-                    outbound.send(report).await?;
+                    }
+                    Err(e) => {
+                        eprintln!("Error: expected value or malformed JSON from client: {}. Raw input: {:?}", e, text);
+                        // We skip this message but keep the connection open
+                    }
                 }
             }
-            Some(Err(e)) => return Err(e.into()),
-            None => break,
-            _ => continue,
+            Ok(Message::Close(_)) => break,
+            Ok(_) => continue, // Ignore other message types like Binary, Ping, Pong
+            Err(e) => return Err(e.into()),
         }
     }
     Ok(())
