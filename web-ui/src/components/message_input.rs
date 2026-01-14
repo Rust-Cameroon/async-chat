@@ -11,7 +11,7 @@ pub struct MessageInputProps {
 }
 
 #[styled_component(MessageInput)]
-pub fn MessageInput(props: &MessageInputProps) -> Html {
+pub fn message_input(props: &MessageInputProps) -> Html {
     let message_text = use_state(|| String::new());
     let is_typing = use_state(|| false);
 
