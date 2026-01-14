@@ -13,5 +13,5 @@ fn main() {
     console_error_panic_hook::set_once();
 
     // Mount the app to the DOM
-    Renderer::<App>::new().render();
+    Renderer::<app_component::App>::new().render();
 }
