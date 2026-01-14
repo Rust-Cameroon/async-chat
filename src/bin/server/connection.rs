@@ -1,6 +1,12 @@
+use crate::group_table::GroupTable;
+use async_chat::{FromClient, FromServer};
+use async_std::net::TcpStream;
+use async_std::prelude::*;
+use async_std::sync::Arc;
+use async_std::sync::Mutex;
 use async_tungstenite::tungstenite::Message;
 use async_tungstenite::WebSocketStream;
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 
 /// Represents a thread-safe outbound connection to a client.
 /// This struct wraps a `WebSocketStream` in a `Mutex` to provide a safe and exclusive way to send data to the client.
@@ -49,33 +55,42 @@ pub async fn serve(socket: WebSocketStream<TcpStream>, groups: Arc<GroupTable>) 
     let outbound = Arc::new(Outbound::new(socket));
     
     // receive data from clients
-    while let Some(msg_result) = outbound.0.lock().await.next().await {
-        let msg = msg_result?;
-        if let Message::Text(text) = msg {
-            let request: FromClient = serde_json::from_str(&text)?;
-            let result = match request {
-                FromClient::Join { group_name } => {
-                    let group = groups.get_or_create(group_name);
-                    group.join(outbound.clone());
-                    Ok(())
-                }
-                FromClient::Post {
-                    group_name,
-                    message,
-                } => match groups.get(&group_name) {
-                    Some(group) => {
-                        group.post(message);
+    loop {
+        let msg_result = {
+            let mut guard = outbound.0.lock().await;
+            guard.next().await
+        };
+        
+        match msg_result {
+            Some(Ok(Message::Text(text))) => {
+                let request: FromClient = serde_json::from_str(&text)?;
+                let result = match request {
+                    FromClient::Join { group_name } => {
+                        let group = groups.get_or_create(group_name);
+                        group.join(outbound.clone());
                         Ok(())
                     }
-                    None => Err(format!("Group '{}' does not exist", group_name)),
-                },
-            };
-            // If an error occurred, send an error message back to the client
-            if let Err(message) = result {
-                let report = FromServer::Error(message);
-                // send error back to client
-                outbound.send(report).await?;
+                    FromClient::Post {
+                        group_name,
+                        message,
+                    } => match groups.get(&group_name) {
+                        Some(group) => {
+                            group.post(message);
+                            Ok(())
+                        }
+                        None => Err(format!("Group '{}' does not exist", group_name)),
+                    },
+                };
+                // If an error occurred, send an error message back to the client
+                if let Err(message) = result {
+                    let report = FromServer::Error(message);
+                    // send error back to client
+                    outbound.send(report).await?;
+                }
             }
+            Some(Err(e)) => return Err(e.into()),
+            None => break,
+            _ => continue,
         }
     }
     Ok(())
