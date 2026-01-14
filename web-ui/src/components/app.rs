@@ -7,15 +7,15 @@ use yew::prelude::*;
 use yew::{Component, Context, Html, html};
 
 // Import child components
-use super::chat_room::ChatRoom;
-use super::group_sidebar::GroupSidebar;
-use super::header::Header;
+use super::chat_room::chat_room;
+use super::group_sidebar::group_sidebar;
+use super::header::header;
 
 /// Main application styles
 const APP_STYLE: &str = include_str!("../styles/global.css");
 
 #[styled_component(App)]
-pub fn App() -> Html {
+pub fn app_component() -> Html {
     let state = use_state(|| AppState::default());
     let connection_service = use_connection_service(
         Callback::from({
@@ -57,10 +57,10 @@ pub fn App() -> Html {
     let service = (*connection_service).clone();
 
     html! {
-        <div class="app-container">
-            <style>{APP_STYLE}</style>
+                <div class="app-container">
+                    <style>{STYLES}</style>
 
-            <Header
+                    <header
                 current_user={current_state.current_user.clone()}
                 connection_status={current_state.connection_status.clone()}
                 theme={current_state.theme}
@@ -73,7 +73,7 @@ pub fn App() -> Html {
             />
 
             <main class="chat-main">
-                <GroupSidebar
+                        <group_sidebar
                     groups={current_state.groups.clone()}
                     current_group={current_state.current_group.clone()}
                     on_group_select={Callback::from(move |group_name: Option<String>| {
