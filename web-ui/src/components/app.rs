@@ -77,10 +77,7 @@ pub fn app_component() -> Html {
                     groups={current_state.groups.clone()}
                     current_group={current_state.current_group.clone()}
                     on_group_select={Callback::from(move |group_name: Option<String>| {
-                        state.set(AppState {
-                            current_group: group_name,
-                            ..current_state.clone()
-                        });
+    state.set(current_state);
                     })}
                     on_join_group={Callback::from(move |group_name: String| {
                         let mut s = service.clone();
