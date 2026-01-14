@@ -118,6 +118,7 @@ fn parse_command(input: &str) -> Result<FromClient, String> {
             }
             Ok(FromClient::Post {
                 group_name: Arc::new(group_name.to_string()),
+                author: Arc::new("CLI-User".to_string()),
                 message: Arc::new(message.to_string()),
             })
         }
@@ -141,9 +142,10 @@ async fn handle_replies(from_server: net::TcpStream) -> anyhow::Result<()> {
         match reply {
             FromServer::Message {
                 group_name,
+                author,
                 message,
             } => {
-                println!("message posted to {}: {}", group_name, message);
+                println!("{}: message posted to {}: {}", author, group_name, message);
             }
             FromServer::Error(error) => {
                 eprintln!("Error: {}", error);
@@ -177,9 +179,11 @@ mod tests {
         match result.unwrap() {
             FromClient::Post {
                 group_name,
+                author,
                 message,
             } => {
                 assert_eq!(*group_name, "general".to_string());
+                assert_eq!(*author, "CLI-User".to_string());
                 assert_eq!(*message, "Hello world!".to_string());
             }
             _ => panic!("Expected Post command"),
