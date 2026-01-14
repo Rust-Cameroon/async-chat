@@ -46,11 +46,59 @@ impl Group {
 
 /// Handles the lifecycle of a subscriber: receiving messages and sending them over their connection.
 ///
-/// This is a stub — should be implemented to read from the `receiver` and forward messages to `outbound`.
+/// Receives messages from the broadcast channel and forwards them to the client connection.
+/// Exits when the client disconnects or an error occurs.
 async fn handle_subscriber(
-    _group_name: Arc<String>,
-    _receiver: broadcast::Receiver<Arc<String>>,
-    _outbound: Arc<Outbound>,
+    group_name: Arc<String>,
+    mut receiver: broadcast::Receiver<Arc<String>>,
+    outbound: Arc<Outbound>,
 ) {
-    todo!()
+    use async_chat::FromServer;
+
+    loop {
+        match receiver.recv().await {
+            Ok(message) => {
+                let server_message = FromServer::Message {
+                    group_name: group_name.clone(),
+                    message,
+                };
+
+                // Send the message to the client
+                if let Err(e) = outbound.send(server_message).await {
+                    eprintln!(
+                        "Failed to send message to client in group '{}': {}",
+                        group_name, e
+                    );
+                    break; // Exit the loop if we can't send to the client
+                }
+            }
+            Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                // Client was too slow, some messages were skipped
+                eprintln!(
+                    "Client in group '{}' lagged behind, skipped {} messages",
+                    group_name, skipped
+                );
+
+                let error_message = FromServer::Error(format!(
+                    "You were lagging behind and missed {} messages",
+                    skipped
+                ));
+
+                if let Err(e) = outbound.send(error_message).await {
+                    eprintln!(
+                        "Failed to send lag error to client in group '{}': {}",
+                        group_name, e
+                    );
+                    break;
+                }
+            }
+            Err(broadcast::error::RecvError::Closed) => {
+                // The broadcast channel was closed (group was deleted)
+                eprintln!("Broadcast channel for group '{}' was closed", group_name);
+                break;
+            }
+        }
+    }
+
+    eprintln!("Subscriber handler for group '{}' exited", group_name);
 }
