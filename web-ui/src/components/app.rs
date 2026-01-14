@@ -117,23 +117,41 @@ pub fn app_component() -> Html {
 
 /// Handle incoming messages from server
 fn handle_server_message(message: FromServer, state: &UseStateHandle<AppState>) {
-    let mut current_state = (*state).clone();
-    
     match message {
         FromServer::Message { group_name, message } => {
             let chat_message = ChatMessage::from_server_message(
                 (*group_name).clone(),
                 (*message).clone(),
                 "Server".to_string(), // Server doesn't send sender info yet
-                current_state.current_user.clone(),
+                state.current_user.clone(),
             );
             
-            current_state.messages.push(chat_message);
-            
-            // Update group's last message
-            if let Some(group) = current_state.groups.iter_mut().find(|g| g.name == *group_name) {
-                group.update_activity(&(*message));
-            }
+            state.set(AppState {
+                messages: state.messages().iter().cloned().chain(std::iter::once(chat_message)).collect(),
+                groups: state.groups().clone(),
+                connection_status: state.connection_status().clone(),
+                current_user: state.current_user().clone(),
+                current_group: state.current_group().clone(),
+                theme: state.theme().clone(),
+            });
+        }
+        FromServer::Error(error) => {
+            console::log_1(&format!("Server error: {}", error).into());
+        }
+    }
+}
+
+/// Handle connection status changes
+fn handle_connection_status_change(status: ConnectionStatus, state: &UseStateHandle<AppState>) {
+    state.set(AppState {
+        messages: state.messages().clone(),
+        groups: state.groups().clone(),
+        connection_status: status,
+        current_user: state.current_user().clone(),
+        current_group: state.current_group().clone(),
+        theme: state.theme().clone(),
+    });
+}
         }
         FromServer::Error(error) => {
             console::log_1(&format!("Server error: {}", error).into());
