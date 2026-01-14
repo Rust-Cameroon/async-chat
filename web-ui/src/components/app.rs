@@ -95,7 +95,7 @@ pub fn app_component() -> Html {
                     })}
                 />
 
-                <ChatRoom
+                        <chat_room
                     messages={current_state.messages.clone()}
                     current_group={current_state.current_group.clone()}
                     current_user={current_state.current_user.clone()}
