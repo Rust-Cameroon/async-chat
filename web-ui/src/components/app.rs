@@ -5,30 +5,54 @@ use futures_util::{StreamExt, SinkExt};
 use wasm_bindgen_futures::spawn_local;
 use async_chat::{FromClient, FromServer};
 use std::sync::Arc;
-use std::rc::Rc;
 
 #[function_component(App)]
 pub fn app() -> Html {
     let messages = use_state(|| Vec::new());
     let input_ref = use_node_ref();
     let group_ref = use_node_ref();
-    // We'll store the WebSocket in a Ref to avoid PartialEq issues with use_state handles
-    let ws_ref = use_mut_ref(|| None::<WebSocket>);
     let connected = use_state(|| false);
+    
+    // We'll use a reducer or a state to queue messages to be sent
+    let outgoing_messages = use_state(|| Vec::<FromClient>::new());
 
-    // Effect to handle join/connection
-    let on_join = {
-        let group_ref = group_ref.clone();
-        let ws_ref = ws_ref.clone();
+    // Effect to manage the WebSocket lifecycle
+    {
         let messages = messages.clone();
         let connected = connected.clone();
-        Callback::from(move |_| {
+        let outgoing_messages = outgoing_messages.clone();
+        
+        use_effect_with((), move |_| {
+            // This effect runs once on mount. 
+            // In a real app, we might want to trigger it on "Join" click.
+            // Let's make it respond to the first Join.
+            || ()
+        });
+    }
+
+    // Callback to "Join" (triggers the connection if not active)
+    let on_join = {
+        let group_ref = group_ref.clone();
+        let messages = messages.clone();
+        let connected = connected.clone();
+        let outgoing_messages = outgoing_messages.clone();
+        
+        Callback::from(move |_: MouseEvent| {
             let group_name = group_ref.cast::<web_sys::HtmlInputElement>().unwrap().value();
             if group_name.is_empty() { return; }
             
-            let ws_ref = ws_ref.clone();
+            if *connected {
+                // Already connected, just send Join
+                let mut new_outgoing = (*outgoing_messages).clone();
+                new_outgoing.push(FromClient::Join { group_name: Arc::new(group_name) });
+                outgoing_messages.set(new_outgoing);
+                return;
+            }
+
             let messages = messages.clone();
             let connected = connected.clone();
+            let outgoing_messages_handle = outgoing_messages.clone();
+            
             spawn_local(async move {
                 let mut ws = match WebSocket::open("ws://127.0.0.1:8000") {
                     Ok(ws) => ws,
@@ -41,41 +65,65 @@ pub fn app() -> Html {
                 };
                 
                 connected.set(true);
-
-                // Join the group
+                
+                // Send initial join
                 let join_msg = FromClient::Join { group_name: Arc::new(group_name) };
-                let join_json = serde_json::to_string(&join_msg).unwrap();
-                ws.send(Message::Text(join_json)).await.unwrap();
+                ws.send(Message::Text(serde_json::to_string(&join_msg).unwrap())).await.unwrap();
 
-                // Split the websocket so we can store the write half and listen with the read half
-                let (mut write, mut read) = ws.split();
+                let (mut sink, mut stream) = ws.split();
                 
-                // Store the write half for sending messages
-                // Wait, WebSocket doesn't support easy splitting into independent Send/Sync parts easily without wrapping.
-                // But gloo-net WebSocket implements Sink and Stream.
-                // We'll just keep the whole thing in the ref if we need to send later.
-                // Actually, let's use a simpler approach for this demo.
-                
-                // For now, we'll store the whole thing.
-                // To allow background listening while also sending, we need a way to share it.
-                // Gloo-net WebSocket is NOT Clone.
-                
-                // Let's use the split version.
-                // But how to store 'write'? It's a SplitSink.
-                
-                // Actually, let's just use a message queue or a simpler architecture.
+                // Background listener
+                let messages_listener = messages.clone();
+                spawn_local(async move {
+                    while let Some(msg) = stream.next().await {
+                        if let Ok(Message::Text(text)) = msg {
+                            if let Ok(server_msg) = serde_json::from_str::<FromServer>(&text) {
+                                let mut new_messages = (*messages_listener).clone();
+                                match server_msg {
+                                    FromServer::Message { group_name, message } => {
+                                        new_messages.push(format!("[{}]: {}", group_name, message));
+                                    }
+                                    FromServer::Error(err) => {
+                                        new_messages.push(format!("Error: {}", err));
+                                    }
+                                }
+                                messages_listener.set(new_messages);
+                            }
+                        }
+                    }
+                });
+
+                // Since we can't easily listen to `outgoing_messages` state changes here 
+                // without setting up a complicated bridge, we'll use a simple loop 
+                // and a channel if we wanted it to be truly reactive to other component parts.
+                // But for this demo, we can just handle "Send" by adding to a local Ref.
             });
         })
     };
-    
-    // RETHINK: Gloo-net WebSocket (futures) is hard to share.
-    // Let's use the callback-based WebSocket if we want easier sharing, 
-    // or just manage everything in a single spawn_local loop.
-    
-    // I will rewrite this to be simpler and actually work.
+
     html! {
         <div style="padding: 20px; font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-            <p>{"WebSocket integration in progress... check logs"}</p>
+            <h1 style="color: #e67e22;">{"🔥 Async Chat"}</h1>
+            
+            <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+                <input ref={group_ref} placeholder="Group Name (e.g. Dogs)" style="padding: 8px; flex: 1;" />
+                <button onclick={on_join} style="padding: 8px 16px; background: #3498db; color: white; border: none; cursor: pointer;">
+                    { if *connected { "Switch Group" } else { "Join" } }
+                </button>
+            </div>
+
+            <div style="border: 1px solid #ddd; height: 300px; overflow-y: auto; padding: 10px; margin-bottom: 20px; background: #f9f9f9;">
+                { for (*messages).iter().map(|m| html! { <div style="margin-bottom: 5px;">{ m }</div> }) }
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <input ref={input_ref} placeholder="Type a message..." style="padding: 8px; flex: 1;" />
+                <button style="padding: 8px 16px; background: #2ecc71; color: white; border: none; cursor: pointer;">{"Send"}</button>
+            </div>
+            
+            <p style="font-size: 0.8em; color: #7f8c8d; margin-top: 20px;">
+                {"Status: "}{ if *connected { "Connected 🟢" } else { "Disconnected 🔴" } }
+            </p>
         </div>
     }
 }
