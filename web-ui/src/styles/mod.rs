@@ -1,1 +1,2 @@
-pub mod styles;
+// Styles module
+
