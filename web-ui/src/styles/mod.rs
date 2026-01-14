@@ -1,3 +1,1 @@
-pub mod global;
-
-pub use global::*;
+pub mod styles;
