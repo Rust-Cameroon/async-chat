@@ -16,6 +16,7 @@ pub enum FromClient {
     /// Post a message to a group.
     Post {
         group_name: Arc<String>,
+        author: Arc<String>,
         message: Arc<String>,
     },
 }
@@ -25,6 +26,7 @@ pub enum FromServer {
     /// A message has been posted to a group.
     Message {
         group_name: Arc<String>,
+        author: Arc<String>,
         message: Arc<String>,
     },
     /// The server encountered an error.
