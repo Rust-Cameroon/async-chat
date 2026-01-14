@@ -3,7 +3,7 @@ mod services;
 mod styles;
 mod types;
 
-use components::app::App;
+use components::app::app_component;
 use wasm_logger::init;
 use yew::Renderer;
 
