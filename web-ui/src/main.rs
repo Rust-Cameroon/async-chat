@@ -3,7 +3,7 @@ mod services;
 mod styles;
 mod types;
 
-use components::app::app;
+use components::app::App;
 
 fn main() {
     // Initialize logger for debugging
@@ -11,5 +11,5 @@ fn main() {
     console_error_panic_hook::set_once();
 
     // Mount the app to the DOM
-    yew::Renderer::<app_component>::new().render();
+    yew::Renderer::<App>::new().render();
 }
