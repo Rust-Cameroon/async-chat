@@ -10,7 +10,7 @@ pub struct MessageListProps {
 }
 
 #[styled_component(MessageList)]
-pub fn MessageList(props: &MessageListProps) -> Html {
+pub fn message_list(props: &MessageListProps) -> Html {
     let messages = props.messages.clone();
     let theme = props.theme;
 
