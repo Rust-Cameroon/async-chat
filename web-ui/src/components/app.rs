@@ -260,7 +260,7 @@ pub fn app() -> Html {
         flex-wrap: wrap;
     "#);
 
-    let bubble_base = r#"
+    let bubble_base = css!(r#"
         max-width: 70%;
         padding: 10px 16px;
         border-radius: 18px;
@@ -273,11 +273,29 @@ pub fn app() -> Html {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-    "#;
+    "#);
 
-    let my_bubble = css!("${bubble_base} align-self: flex-end; background-color: #0084ff; color: white; border-bottom-right-radius: 4px;", bubble_base = bubble_base);
-    let other_bubble = css!("${bubble_base} align-self: flex-start; background-color: #e4e6eb; color: black; border-bottom-left-radius: 4px;", bubble_base = bubble_base);
-    let error_bubble = css!("${bubble_base} align-self: center; background-color: #fce4e4; color: #c0392b; font-size: 0.85rem; border: 1px solid #f5c6cb;", bubble_base = bubble_base);
+    let my_bubble = css!(r#"
+        align-self: flex-end;
+        background-color: #0084ff;
+        color: white;
+        border-bottom-right-radius: 4px;
+    "#);
+
+    let other_bubble = css!(r#"
+        align-self: flex-start;
+        background-color: #e4e6eb;
+        color: black;
+        border-bottom-left-radius: 4px;
+    "#);
+
+    let error_bubble = css!(r#"
+        align-self: center;
+        background-color: #fce4e4;
+        color: #c0392b;
+        font-size: 0.85rem;
+        border: 1px solid #f5c6cb;
+    "#);
 
     let input_style = css!(r#"
         padding: 12px 16px;
@@ -300,6 +318,18 @@ pub fn app() -> Html {
         &:hover { filter: brightness(1.1); }
     "#);
 
+    let join_btn_style = css!(r#"
+        background: #3498db;
+        color: white;
+    "#);
+
+    let send_btn_style = css!(r#"
+        background: #2ecc71;
+        color: white;
+        font-size: 1.2rem;
+        padding: 10px;
+    "#);
+
     html! {
         <div class={container_style}>
             <header class={header_style}>
@@ -315,14 +345,20 @@ pub fn app() -> Html {
             <div class={controls_style}>
                 <input ref={name_ref} class={input_style.clone()} placeholder="Your Name" style="flex: 0 1 150px;" />
                 <input ref={group_ref} class={input_style.clone()} placeholder="Group Name" style="flex: 1;" />
-                <button onclick={on_join} class={css!("${btn_style} background: #3498db; color: white;", btn_style = btn_style.clone())}>
+                <button onclick={on_join} class={classes!(btn_style.clone(), join_btn_style)}>
                     { if *connected { "Switch" } else { "Join" } }
                 </button>
             </div>
 
             <main ref={chat_box_ref} class={chat_area_style}>
                 { for chat_state.messages.iter().map(|m| {
-                    let class = if m.is_error { error_bubble.clone() } else if m.is_self { my_bubble.clone() } else { other_bubble.clone() };
+                    let class = if m.is_error {
+                        classes!(bubble_base.clone(), error_bubble.clone())
+                    } else if m.is_self {
+                        classes!(bubble_base.clone(), my_bubble.clone())
+                    } else {
+                        classes!(bubble_base.clone(), other_bubble.clone())
+                    };
                     html! {
                         <div {class}>
                             if !m.is_error {
@@ -336,7 +372,7 @@ pub fn app() -> Html {
 
             <footer class={input_area_style}>
                 <input ref={input_ref} onkeypress={on_keypress} class={input_style} placeholder="Type a message..." />
-                <button onclick={on_send} class={css!("${btn_style} background: #2ecc71; color: white; font-size: 1.2rem; padding: 10px;", btn_style = btn_style)}>
+                <button onclick={on_send} class={classes!(btn_style.clone(), send_btn_style)}>
                     {"↑"}
                 </button>
             </footer>
