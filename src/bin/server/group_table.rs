@@ -16,14 +16,6 @@ impl GroupTable {
     }
 
     /// Retrieves a group by name, if it exists.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - The name of the group to retrieve.
-    ///
-    /// # Returns
-    ///
-    /// An `Option` containing the group, or `None` if it doesn't exist.
     pub fn get(&self, name: &String) -> Option<Arc<Group>> {
         self.0.lock().unwrap().get(name).cloned()
     }
