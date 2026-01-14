@@ -1,12 +1,6 @@
-use crate::group_table::GroupTable;
-use async_chat::{FromClient, FromServer};
-use async_std::net::TcpStream;
-use async_std::prelude::*;
-use async_std::sync::Arc;
-use async_std::sync::Mutex;
 use async_tungstenite::tungstenite::Message;
 use async_tungstenite::WebSocketStream;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::StreamExt;
 
 /// Represents a thread-safe outbound connection to a client.
 /// This struct wraps a `WebSocketStream` in a `Mutex` to provide a safe and exclusive way to send data to the client.
@@ -50,7 +44,7 @@ impl Outbound {
 /// - Reading from the socket fails
 /// - Sending a message fails
 /// - A user tries to post to a group that does not exist
-pub async fn serve(mut socket: WebSocketStream<TcpStream>, groups: Arc<GroupTable>) -> anyhow::Result<()> {
+pub async fn serve(socket: WebSocketStream<TcpStream>, groups: Arc<GroupTable>) -> anyhow::Result<()> {
     // wrapping our connection in outbound so as to have exclusive access to it in the groups and avoid interference
     let outbound = Arc::new(Outbound::new(socket));
     
