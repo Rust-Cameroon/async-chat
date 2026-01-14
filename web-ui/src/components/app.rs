@@ -70,12 +70,16 @@ pub fn app() -> Html {
 
     let on_join = {
         let group_ref = group_ref.clone();
+        let name_ref = name_ref.clone();
         let chat_state = chat_state.clone();
         let connected = connected.clone();
         let tx = tx.clone();
         
         Callback::from(move |_: MouseEvent| {
             let group_name = group_ref.cast::<HtmlInputElement>().expect("input exists").value();
+            let user_name = name_ref.cast::<HtmlInputElement>().expect("name exists").value();
+            let my_name = if user_name.is_empty() { "Me".to_string() } else { user_name };
+
             if group_name.is_empty() { return; }
             
             if let Some(sender) = &*tx {
@@ -86,6 +90,7 @@ pub fn app() -> Html {
             let chat_state = chat_state.clone();
             let connected = connected.clone();
             let tx_handle = tx.clone();
+            let my_name_captured = my_name.clone();
             
             spawn_local(async move {
                 let ws = match WebSocket::open("ws://127.0.0.1:8000") {
@@ -119,11 +124,11 @@ pub fn app() -> Html {
                             Ok(Message::Text(text)) => {
                                 if let Ok(server_msg) = serde_json::from_str::<FromServer>(&text) {
                                     match server_msg {
-                                        FromServer::Message { group_name, message } => {
+                                        FromServer::Message { group_name: _, author, message } => {
                                             chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
-                                                author: group_name.to_string(),
+                                                is_self: author.to_string() == my_name_captured,
+                                                author: author.to_string(),
                                                 text: message.to_string(),
-                                                is_self: false, // In a real app we'd compare with our own name
                                                 is_error: false,
                                             }));
                                         }
@@ -181,15 +186,12 @@ pub fn app() -> Html {
             if message.is_empty() || group_name.is_empty() { return; }
             
             if let Some(sender) = &*tx {
-                let msg_text = if user_name.is_empty() { 
-                    message 
-                } else { 
-                    format!("{}: {}", user_name, message) 
-                };
+                let my_name = if user_name.is_empty() { "Me".to_string() } else { user_name };
 
                 let post_msg = FromClient::Post { 
                     group_name: Arc::new(group_name),
-                    message: Arc::new(msg_text)
+                    author: Arc::new(my_name),
+                    message: Arc::new(message)
                 };
                 if let Ok(_) = sender.unbounded_send(post_msg) {
                     input_el.set_value("");
@@ -272,7 +274,7 @@ pub fn app() -> Html {
 
     let my_bubble = css!(r#"
         align-self: flex-end;
-        background-color: #0084ff;
+        background-color: #2ecc71;
         color: white;
         border-bottom-right-radius: 4px;
     "#);
