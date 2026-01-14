@@ -170,7 +170,7 @@ pub fn app() -> Html {
             </div>
 
             <div style="display: flex; gap: 10px;">
-                <input ref={input_ref} {onkeypress} placeholder="Type a message..." style="padding: 8px; flex: 1;" />
+                <input ref={input_ref} onkeypress={on_keypress} placeholder="Type a message..." style="padding: 8px; flex: 1;" />
                 <button onclick={on_send} style="padding: 8px 16px; border-radius: 4px; background: #2ecc71; color: white; border: none; cursor: pointer;">{"Send"}</button>
             </div>
             
