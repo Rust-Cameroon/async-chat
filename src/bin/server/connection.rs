@@ -53,13 +53,19 @@ pub async fn serve(socket: WebSocketStream<TcpStream>, groups: Arc<GroupTable>) 
                                 group_name,
                                 author,
                                 message,
-                            } => match groups.get(&group_name) {
-                                Some(group) => {
-                                    group.post(author, message);
-                                    Ok(())
+                            } => {
+                                eprintln!("Server: Received Post to group '{}' from '{}': {}", group_name, author, message);
+                                match groups.get(&group_name) {
+                                    Some(group) => {
+                                        group.post(author, message);
+                                        Ok(())
+                                    }
+                                    None => {
+                                        eprintln!("Server Error: Group '{}' not found", group_name);
+                                        Err(format!("Group '{}' does not exist", group_name))
+                                    }
                                 }
-                                None => Err(format!("Group '{}' does not exist", group_name)),
-                            },
+                            }
                         };
                         // If an error occurred (logical error), send an error message back to the client
                         if let Err(message) = result {
