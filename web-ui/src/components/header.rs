@@ -11,7 +11,7 @@ pub struct HeaderProps {
 }
 
 #[styled_component(Header)]
-pub fn Header(props: &HeaderProps) -> Html {
+pub fn header(props: &HeaderProps) -> Html {
     let theme = props.theme;
 
     let header_style = stylist::Style::new(
