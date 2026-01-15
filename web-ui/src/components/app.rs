@@ -80,8 +80,6 @@ impl Reducible for ChatState {
     }
 }
 
-use std::rc::Rc;
-
 #[styled_component(App)]
 pub fn app() -> Html {
     let chat_state = use_reducer(|| ChatState { messages: Vec::new(), groups: Vec::new(), typing_users: Vec::new() });
