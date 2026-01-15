@@ -1053,29 +1053,23 @@ pub fn app() -> Html {
                                     // Quick reactions
                                     { if !m.is_error {
                                         let tx_clone = tx.clone();
-                                        let group_ref_clone = group_ref.clone();
                                         let my_name_clone = my_name.clone();
                                         let msg_id = m.id.clone();
                                         html! {
                                             <div style="display: flex; gap: 8px; margin-top: 5px; opacity: 0.6; font-size: 0.9rem;">
                                                 { for ["❤️", "👍", "😂", "🎉"].iter().map(|&emoji| {
-                                                    let tx_inner = tx_clone.clone();
-                                                    let group_ref_inner = group_ref_clone.clone();
+                                                    let chat_state_inner = chat_state.clone();
                                                     let my_name_inner = my_name_clone.clone();
                                                     let msg_id_inner = msg_id.clone();
                                                     let emoji_str = emoji.to_string();
+                                                    let msg_idx_inner = msg_idx;
                                                     let on_react = Callback::from(move |_: MouseEvent| {
-                                                        if let Some(sender) = &*tx_inner {
-                                                            if let Some(group_el) = group_ref_inner.cast::<HtmlInputElement>() {
-                                                                let group_name = group_el.value().trim().to_string();
-                                                                let _ = sender.unbounded_send(FromClient::PostReaction {
-                                                                    group_name: Arc::new(group_name),
-                                                                    author: Arc::new(my_name_inner.clone()),
-                                                                    message_id: msg_id_inner.clone(),
-                                                                    emoji: emoji_str.clone(),
-                                                                });
-                                                            }
-                                                        }
+                                                        // Just update local state - server broadcast will sync
+                                                        chat_state_inner.dispatch(ChatAction::AddReaction {
+                                                            msg_index: msg_idx_inner,
+                                                            emoji: emoji_str.clone(),
+                                                            user: my_name_inner.clone(),
+                                                        });
                                                     });
                                                     html! {
                                                         <span 
