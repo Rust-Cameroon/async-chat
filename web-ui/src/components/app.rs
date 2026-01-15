@@ -543,25 +543,29 @@ pub fn app() -> Html {
 
     let chat_footer_style = css!(r#"
         padding: 15px 25px 25px;
-        background-color: #e3f2fd;
-    "#);
+        background-color: ${footer_bg};
+        transition: all 0.3s ease;
+    "#, footer_bg=if *dark_mode { "#2d2d2d" } else { "#e3f2fd" });
 
     let input_wrapper_style = css!(r#"
-        background-color: white;
+        background-color: ${input_bg};
         border-radius: 30px;
         display: flex;
         align-items: center;
         padding: 5px 10px 5px 20px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         gap: 15px;
+        transition: all 0.3s ease;
         input {
             flex: 1;
             border: none;
             outline: none;
             padding: 10px 0;
             font-size: 0.95rem;
+            background: transparent;
+            color: ${text};
         }
-    "#);
+    "#, input_bg=input_bg, text=text_color);
 
     let icon_btn_style = css!(r#"
         background: none;
@@ -592,14 +596,15 @@ pub fn app() -> Html {
 
     // Sidebar Right Styles
     let sidebar_right_style = css!(r#"
-        background-color: #f7f9fa;
-        border-left: 1px solid #e1e4e8;
+        background-color: ${sidebar_bg};
+        border-left: 1px solid ${border};
         display: flex;
         flex-direction: column;
         padding: 20px;
         overflow-y: auto;
+        transition: all 0.3s ease;
         @media (max-width: 1200px) { display: none; }
-    "#);
+    "#, sidebar_bg=sidebar_bg, border=border_color);
 
     let profile_large_style = css!(r#"
         display: flex;
@@ -619,20 +624,23 @@ pub fn app() -> Html {
     "#);
 
     let action_card_style = css!(r#"
-        background: white;
+        background: ${card_bg};
         padding: 15px;
         border-radius: 12px;
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: 8px;
-        border: 1px solid #edf2f7;
+        border: 1px solid ${border};
         cursor: pointer;
-        transition: box-shadow 0.2s;
-        &:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        transition: all 0.2s ease;
+        &:hover { 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
         .icon { font-size: 1.5rem; color: #0084ff; }
-        .label { font-size: 0.8rem; font-weight: 500; }
-    "#);
+        .label { font-size: 0.8rem; font-weight: 500; color: ${text}; }
+    "#, card_bg=input_bg, border=border_color, text=text_color);
 
     let attachments_section = css!(r#"
         margin-top: 30px;
@@ -678,6 +686,18 @@ pub fn app() -> Html {
         font-size: 0.95rem;
         line-height: 1.5;
         position: relative;
+        animation: slideIn 0.3s ease;
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     "#);
 
     let my_bubble = css!(r#"
@@ -689,24 +709,35 @@ pub fn app() -> Html {
 
     let other_bubble = css!(r#"
         align-self: flex-start;
-        background-color: #f1f3f4;
-        color: #1a1a1a;
+        background-color: ${other_bg};
+        color: ${other_text};
         border-bottom-left-radius: 4px;
-    "#);
+    "#, other_bg=if *dark_mode { "#3a3a3a" } else { "#f1f3f4" }, other_text=if *dark_mode { "#e0e0e0" } else { "#1a1a1a" });
 
     let connection_pill = css!(r#"
         font-size: 0.75rem;
-        background: #edf2f7;
-        color: #4a5568;
+        background: ${pill_bg};
+        color: ${pill_text};
         padding: 4px 12px;
         border-radius: 12px;
         display: flex;
         align-items: center;
         gap: 6px;
-        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        transition: all 0.3s ease;
+        .dot { 
+            width: 8px; 
+            height: 8px; 
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
         .online { background-color: #2ecc71; }
         .offline { background-color: #e74c3c; }
-    "#);
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    "#, pill_bg=if *dark_mode { "#3a3a3a" } else { "#edf2f7" }, pill_text=if *dark_mode { "#a0aec0" } else { "#4a5568" });
 
     html! {
         <div class={container_style}>
@@ -778,18 +809,27 @@ pub fn app() -> Html {
                             </div>
                         </div>
                     </div>
-                    { if !*right_sidebar_visible {
-                        html! { <span onclick={toggle_right.clone()} style="cursor: pointer; font-size: 1.2rem; opacity: 0.5;" title="Show Info">{"⇠"}</span> }
-                    } else { html! {} }}
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span 
+                            onclick={toggle_dark_mode} 
+                            style="cursor: pointer; font-size: 1.5rem; transition: transform 0.3s ease;"
+                            title={if *dark_mode { "Light Mode" } else { "Dark Mode" }}
+                        >
+                            { if *dark_mode { "☀️" } else { "🌙" } }
+                        </span>
+                        { if !*right_sidebar_visible {
+                            html! { <span onclick={toggle_right.clone()} style="cursor: pointer; font-size: 1.2rem; opacity: 0.5;" title="Show Info">{"⇠"}</span> }
+                        } else { html! {} }}
+                    </div>
                 </header>
 
                 <div ref={chat_box_ref} class={chat_messages_style}>
                     <div style="text-align: center; margin: 10px 0; position: relative;">
-                        <hr style="border: none; border-top: 1px solid #f0f0f0; position: absolute; top: 50%; width: 100%; z-index: 1;" />
-                        <span style="background: white; padding: 0 15px; font-size: 0.75rem; color: #a0aec0; font-weight: 600; position: relative; z-index: 2;">{"Async History"}</span>
+                        <hr style={format!("border: none; border-top: 1px solid {}; position: absolute; top: 50%; width: 100%; z-index: 1;", border_color)} />
+                        <span style={format!("background: {}; padding: 0 15px; font-size: 0.75rem; color: #a0aec0; font-weight: 600; position: relative; z-index: 2;", bg_color)}>{"Async History"}</span>
                     </div>
 
-                    { for chat_state.messages.iter().map(|m| {
+                    { for chat_state.messages.iter().enumerate().map(|(idx, m)| {
                         let is_system = m.author == "System" || m.author == "Error" || m.is_error;
                         
                         if is_system {
@@ -810,11 +850,18 @@ pub fn app() -> Html {
                             classes!(bubble_base.clone(), other_bubble.clone())
                         };
 
+                        let formatted_time = m.timestamp.format("%H:%M").to_string();
+                        let my_name = (*my_name_state).clone();
+                        let msg_idx = idx;
+                        
                         html! {
                             <div style={if m.is_self { "display: flex; flex-direction: row-reverse; gap: 12px;" } else { "display: flex; gap: 12px;" }}>
                                 <img src={format!("https://ui-avatars.com/api/?name={}&background=random", m.author)} class={avatar_style.clone()} style="width: 32px; height: 32px;" />
                                 <div style={if m.is_self { "display: flex; flex-direction: column; align-items: flex-end;" } else { "display: flex; flex-direction: column;" }}>
-                                    <div style="font-size: 0.7rem; font-weight: 700; margin-bottom: 4px; opacity: 0.6;">{ &m.author }</div>
+                                    <div style="font-size: 0.7rem; font-weight: 700; margin-bottom: 4px; opacity: 0.6;">
+                                        { &m.author }
+                                        <span style="margin-left: 8px; font-weight: 400; opacity: 0.8;">{ formatted_time }</span>
+                                    </div>
                                     <div class={bubble_class}>
                                         { match &m.content {
                                             MessageContent::Text(text) => html! { <span>{ text }</span> },
@@ -840,6 +887,57 @@ pub fn app() -> Html {
                                             }
                                         }}
                                     </div>
+                                    
+                                    // Reactions display
+                                    { if !m.reactions.is_empty() {
+                                        html! {
+                                            <div style="display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap;">
+                                                { for m.reactions.iter().map(|(emoji, _user)| {
+                                                    html! {
+                                                        <span style={format!(
+                                                            "background: {}; padding: 3px 8px; border-radius: 12px; font-size: 0.85rem; border: 1px solid {};",
+                                                            if *dark_mode { "#3a3a3a" } else { "#f0f0f0" },
+                                                            border_color
+                                                        )}>
+                                                            { emoji }
+                                                        </span>
+                                                    }
+                                                })}
+                                            </div>
+                                        }
+                                    } else { html! {} }}
+                                    
+                                    // Quick reactions
+                                    { if !m.is_error {
+                                        let chat_state_clone = chat_state.clone();
+                                        let my_name_clone = my_name.clone();
+                                        html! {
+                                            <div style="display: flex; gap: 8px; margin-top: 5px; opacity: 0.6; font-size: 0.9rem;">
+                                                { for ["❤️", "👍", "😂", "🎉"].iter().map(|&emoji| {
+                                                    let chat_state_inner = chat_state_clone.clone();
+                                                    let my_name_inner = my_name_clone.clone();
+                                                    let emoji_str = emoji.to_string();
+                                                    let on_react = Callback::from(move |_: MouseEvent| {
+                                                        chat_state_inner.dispatch(ChatAction::AddReaction {
+                                                            msg_index: msg_idx,
+                                                            emoji: emoji_str.clone(),
+                                                            user: my_name_inner.clone(),
+                                                        });
+                                                    });
+                                                    html! {
+                                                        <span 
+                                                            onclick={on_react}
+                                                            style="cursor: pointer; transition: transform 0.2s;"
+                                                            onmouseover="this.style.transform='scale(1.3)'"
+                                                            onmouseout="this.style.transform='scale(1)'"
+                                                        >
+                                                            { emoji }
+                                                        </span>
+                                                    }
+                                                })}
+                                            </div>
+                                        }
+                                    } else { html! {} }}
                                 </div>
                             </div>
                         }
@@ -890,7 +988,8 @@ pub fn app() -> Html {
                             ref={input_ref}
                             class={css!("flex: 1; border: none; padding: 10px 15px; outline: none; font-size: 0.95rem;")} 
                             placeholder={if *is_recording { "Recording voice..." } else { "Type progress here..." }}
-                            onkeypress={on_keypress}
+                            onkeypress={on_keypress.clone()}
+                            oninput={on_input_change}
                             disabled={*is_recording}
                         />
                         <div style="display: flex; gap: 12px; padding: 0 10px; border-left: 1px solid #f0f0f0;">
@@ -901,6 +1000,31 @@ pub fn app() -> Html {
                     <button onclick={on_send} class={send_circle_btn}>
                         {"➔"}
                     </button>
+                    
+                    // Typing indicator
+                    { if *is_typing && chat_state.typing_users.len() > 0 {
+                        html! {
+                            <div style={format!(
+                                "position: absolute; bottom: 100%; left: 30px; background: {}; padding: 8px 15px; border-radius: 20px; font-size: 0.8rem; color: {}; margin-bottom: 5px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);",
+                                if *dark_mode { "#3a3a3a" } else { "#f1f3f4" },
+                                if *dark_mode { "#a0aec0" } else { "#6b7280"
+                            )}>
+                                <span style="opacity: 0.7;">{"Someone is typing"}</span>
+                                <span class={css!(r#"
+                                    margin-left: 5px;
+                                    &::after {
+                                        content: '...';
+                                        animation: typing 1.4s infinite;
+                                    }
+                                    @keyframes typing {
+                                        0%, 100% { opacity: 0; }
+                                        50% { opacity: 1; }
+                                    }
+                                "#)}>
+                                </span>
+                            </div>
+                        }
+                    } else { html! {} }}
                 </footer>
             </main>
 
