@@ -1032,9 +1032,13 @@ pub fn app() -> Html {
                                                     html! {
                                                         <span 
                                                             onclick={on_react}
-                                                            style="cursor: pointer; transition: transform 0.2s;"
-                                                            onmouseover="this.style.transform='scale(1.3)'"
-                                                            onmouseout="this.style.transform='scale(1)'"
+                                                            class={css!(r#"
+                                                                cursor: pointer;
+                                                                transition: transform 0.2s;
+                                                                &:hover {
+                                                                    transform: scale(1.3);
+                                                                }
+                                                            "#)}
                                                         >
                                                             { emoji }
                                                         </span>
@@ -1108,11 +1112,12 @@ pub fn app() -> Html {
                     
                     // Typing indicator
                     { if *is_typing && chat_state.typing_users.len() > 0 {
+                        let typing_bg = if *dark_mode { "#3a3a3a" } else { "#f1f3f4" };
+                        let typing_text = if *dark_mode { "#a0aec0" } else { "#6b7280" };
                         html! {
                             <div style={format!(
                                 "position: absolute; bottom: 100%; left: 30px; background: {}; padding: 8px 15px; border-radius: 20px; font-size: 0.8rem; color: {}; margin-bottom: 5px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);",
-                                if *dark_mode { "#3a3a3a" } else { "#f1f3f4" },
-                                if *dark_mode { "#a0aec0" } else { "#6b7280"
+                                typing_bg, typing_text
                             )}>
                                 <span style="opacity: 0.7;">{"Someone is typing"}</span>
                                 <span class={css!(r#"
