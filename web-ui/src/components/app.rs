@@ -477,148 +477,128 @@ pub fn app() -> Html {
     };
     let toggle_recording = {
         let is_recording = is_recording.clone();
-        let recording_state = recording_state.clone();
         let tx = tx.clone();
         let group_ref = group_ref.clone();
         let my_name_state = my_name_state.clone();
+        let chat_state = chat_state.clone();
         
         Callback::from(move |_: MouseEvent| {
             let is_recording = is_recording.clone();
-            let recording_state = recording_state.clone();
             let tx = tx.clone();
             let group_ref = group_ref.clone();
             let my_name_state = my_name_state.clone();
+            let chat_state = chat_state.clone();
             
-            spawn_local(async move {
-                if *is_recording {
-                    // Stop recording
-                    if let Some((recorder, _chunks, start_time)) = (*recording_state).clone() {
-                        // Stop the recorder
-                        let _ = recorder.stop();
-                        
-                        // Wait a bit for data to be available
-                        let promise = js_sys::Promise::new(&mut |resolve, _| {
-                            let _ = web_sys::window()
-                                .unwrap()
-                                .set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, 500);
-                        });
-                        let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
-                        
-                        // Calculate duration
-                        let duration = if let Some(window) = web_sys::window() {
-                            let perf = window.performance().unwrap();
-                            (perf.now() - start_time) / 1000.0
-                        } else {
-                            1.0
-                        };
-                        
-                        // Get the recorded data from the recorder's internal storage
-                        // For now, create a simple empty audio blob as placeholder
-                        // In a real implementation, we'd collect chunks properly
-                        let blob_parts = js_sys::Array::new();
-                        if let Ok(blob) = web_sys::Blob::new_with_u8_array_sequence(&blob_parts) {
-                            if true { // Placeholder condition
-                                // Convert to base64
-                                if let Ok(reader) = web_sys::FileReader::new() {
-                                    let reader_clone = reader.clone();
-                                    let tx = tx.clone();
-                                    let group_ref = group_ref.clone();
-                                    let my_name_state = my_name_state.clone();
+            // Use JavaScript to handle recording since web-sys MediaRecorder is complex
+            let window = web_sys::window().unwrap();
+            
+            if *is_recording {
+                // Stop recording - call the global stop function
+                let _ = js_sys::eval("if(window._stopRecording) window._stopRecording();");
+                is_recording.set(false);
+            } else {
+                // Start recording
+                is_recording.set(true);
+                
+                let tx_clone = tx.clone();
+                let group_ref_clone = group_ref.clone();
+                let my_name_clone = my_name_state.clone();
+                let is_recording_clone = is_recording.clone();
+                let chat_state_clone = chat_state.clone();
+                
+                // Create callback for when recording is done
+                let on_recording_done = Closure::wrap(Box::new(move |data_url: String, duration: f64| {
+                    web_sys::console::log_1(&format!("Recording done! Duration: {:.1}s", duration).into());
+                    
+                    if !data_url.is_empty() {
+                        // Send voice message to server
+                        if let Some(sender) = &*tx_clone {
+                            if let Some(group_el) = group_ref_clone.cast::<HtmlInputElement>() {
+                                let group_name = group_el.value().trim().to_string();
+                                if !group_name.is_empty() {
+                                    let _ = sender.unbounded_send(FromClient::PostVoice {
+                                        group_name: Arc::new(group_name),
+                                        author: Arc::new((*my_name_clone).clone()),
+                                        duration,
+                                        data: data_url.clone(),
+                                    });
                                     
-                                    let onload = Closure::wrap(Box::new(move |_: web_sys::ProgressEvent| {
-                                        if let Ok(result) = reader_clone.result() {
-                                            if let Some(data_url) = result.as_string() {
-                                                // Send voice message
-                                                if let Some(sender) = &*tx {
-                                                    if let Some(group_el) = group_ref.cast::<HtmlInputElement>() {
-                                                        let group_name = group_el.value().trim().to_string();
-                                                        let _ = sender.unbounded_send(FromClient::PostVoice {
-                                                            group_name: Arc::new(group_name),
-                                                            author: Arc::new((*my_name_state).clone()),
-                                                            duration,
-                                                            data: data_url,
-                                                        });
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }) as Box<dyn FnMut(_)>);
-                                    
-                                    reader.set_onload(Some(onload.as_ref().unchecked_ref()));
-                                    onload.forget();
-                                    
-                                    let _ = reader.read_as_data_url(&blob);
+                                    // Also add to local chat immediately
+                                    chat_state_clone.dispatch(ChatAction::AddMessage(ChatMessage {
+                                        id: uuid::Uuid::new_v4().to_string(),
+                                        author: (*my_name_clone).clone(),
+                                        content: MessageContent::Voice { duration, data: data_url },
+                                        is_self: true,
+                                        is_error: false,
+                                        timestamp: chrono::Utc::now(),
+                                        reactions: Vec::new(),
+                                    }));
+                                } else {
+                                    web_sys::console::log_1(&"Please join a group first to send voice messages!".into());
                                 }
                             }
                         }
-                        
-                        recording_state.set(None);
                     }
-                    is_recording.set(false);
-                } else {
-                    // Start recording
-                    if let Some(window) = web_sys::window() {
-                        if let Some(navigator) = window.navigator().media_devices().ok() {
-                            let mut constraints = web_sys::MediaStreamConstraints::new();
-                            constraints.audio(&true.into());
+                    is_recording_clone.set(false);
+                }) as Box<dyn FnMut(String, f64)>);
+                
+                // Store callback globally so JS can call it
+                let _ = js_sys::Reflect::set(
+                    &window,
+                    &"_onRecordingDone".into(),
+                    on_recording_done.as_ref()
+                );
+                on_recording_done.forget();
+                
+                // Start recording via JavaScript - more reliable than web-sys
+                let js_code = r#"
+                    (async function() {
+                        try {
+                            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                            const mediaRecorder = new MediaRecorder(stream);
+                            const chunks = [];
+                            const startTime = Date.now();
                             
-                            if let Ok(promise) = navigator.get_user_media_with_constraints(&constraints) {
-                                let future = wasm_bindgen_futures::JsFuture::from(promise);
-                                
-                                match future.await {
-                                    Ok(stream) => {
-                                        let media_stream: web_sys::MediaStream = stream.into();
-                                        
-                                        if let Ok(recorder) = web_sys::MediaRecorder::new_with_media_stream(&media_stream) {
-                                            let chunks: Vec<web_sys::Blob> = Vec::new();
-                                            let recorder_clone = recorder.clone();
-                                            let recording_state = recording_state.clone();
-                                            
-                                            // Setup ondataavailable
-                                            let chunks_rc = Rc::new(RefCell::new(chunks));
-                                            let chunks_for_closure = chunks_rc.clone();
-                                            
-                                            let ondataavailable = Closure::wrap(Box::new(move |e: web_sys::BlobEvent| {
-                                                if let Some(blob) = e.data() {
-                                                    chunks_for_closure.borrow_mut().push(blob);
-                                                }
-                                            }) as Box<dyn FnMut(_)>);
-                                            
-                                            recorder.set_ondataavailable(Some(ondataavailable.as_ref().unchecked_ref()));
-                                            ondataavailable.forget();
-                                            
-                                            // Get start time
-                                            let start_time = window.performance().unwrap().now();
-                                            
-                                            // Start recording
-                                            let _ = recorder.start();
-                                            
-                                            // Store state (we'll update with chunks later)
-                                            recording_state.set(Some((recorder_clone, Vec::new(), start_time)));
-                                            is_recording.set(true);
-                                        }
+                            mediaRecorder.ondataavailable = (e) => {
+                                if (e.data.size > 0) chunks.push(e.data);
+                            };
+                            
+                            mediaRecorder.onstop = () => {
+                                const duration = (Date.now() - startTime) / 1000;
+                                const blob = new Blob(chunks, { type: 'audio/webm' });
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                    if (window._onRecordingDone) {
+                                        window._onRecordingDone(reader.result || '', duration);
                                     }
-                                    Err(e) => {
-                                        web_sys::console::log_1(&format!("Error accessing microphone: {:?}", e).into());
-                                    }
+                                    stream.getTracks().forEach(track => track.stop());
+                                };
+                                reader.readAsDataURL(blob);
+                            };
+                            
+                            window._stopRecording = () => {
+                                if (mediaRecorder.state !== 'inactive') {
+                                    mediaRecorder.stop();
                                 }
+                            };
+                            
+                            mediaRecorder.start();
+                            console.log('🎤 Recording started...');
+                        } catch(err) {
+                            console.error('Error accessing microphone:', err);
+                            alert('Could not access microphone. Please allow microphone permissions and make sure you are using HTTPS.');
+                            if (window._onRecordingDone) {
+                                window._onRecordingDone('', 0);
                             }
                         }
-                    }
-                }
-            });
+                    })();
+                "#;
+                
+                let _ = js_sys::eval(js_code);
+            }
         })
     };
 
-    let on_keypress = {
-        let on_send = on_send.clone();
-        let is_typing = is_typing.clone();
-        Callback::from(move |e: KeyboardEvent| {
-            if e.key() == "Enter" {
-                on_send.emit(MouseEvent::new("click").unwrap());
-                is_typing.set(false);
-            } else {
-                is_typing.set(true);
             }
         })
     };
