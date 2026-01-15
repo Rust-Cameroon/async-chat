@@ -15,10 +15,12 @@ use wasm_bindgen::JsCast;
 enum MessageContent {
     Text(String),
     File { filename: String, data: String },
+    Voice { duration: f64, data: String },
 }
 
 #[derive(Clone, PartialEq)]
 struct ChatMessage {
+    id: String,
     author: String,
     content: MessageContent,
     is_self: bool,
@@ -96,6 +98,13 @@ pub fn app() -> Html {
     let dark_mode = use_state(|| false);
     let is_typing = use_state(|| false);
     let notifications_enabled = use_state(|| false);
+    let show_file_confirm = use_state(|| false);
+    let show_voice_confirm = use_state(|| false);
+    let pending_file_data = use_state(|| None::<(String, String)>); // (filename, base64_data)
+    let pending_voice_data = use_state(|| None::<(f64, String)>); // (duration, base64_data)
+    let audio_chunks = use_state(|| Vec::<Vec<u8>>::new());
+    let media_recorder = use_state(|| None::<web_sys::MediaRecorder>());
+    let recording_start_time = use_state(|| None::<f64>);
     
     // Request notification permission on mount
     {
@@ -197,6 +206,7 @@ pub fn app() -> Html {
                     Ok(ws) => ws,
                     Err(e) => {
                         chat_state.dispatch(ChatAction::AddMessage(ChatMessage {
+                            id: uuid::Uuid::new_v4().to_string(),
                             author: "System".to_string(),
                             content: MessageContent::Text(format!("Connection error: {:?}", e)),
                             is_self: false,
@@ -229,6 +239,7 @@ pub fn app() -> Html {
                                         FromServer::Message { group_name: _, author, message } => {
                                             let is_self = author.to_string() == my_name_captured;
                                             chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
+                                                id: uuid::Uuid::new_v4().to_string(),
                                                 is_self,
                                                 author: author.to_string(),
                                                 content: MessageContent::Text(message.to_string()),
@@ -267,6 +278,7 @@ pub fn app() -> Html {
                                         }
                                         FromServer::File { author, filename, data, .. } => {
                                             chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
+                                                id: uuid::Uuid::new_v4().to_string(),
                                                 is_self: author.to_string() == my_name_captured,
                                                 author: author.to_string(),
                                                 content: MessageContent::File { filename, data },
@@ -275,11 +287,31 @@ pub fn app() -> Html {
                                                 reactions: Vec::new(),
                                             }));
                                         }
+                                        FromServer::Voice { author, duration, data, .. } => {
+                                            chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
+                                                id: uuid::Uuid::new_v4().to_string(),
+                                                is_self: author.to_string() == my_name_captured,
+                                                author: author.to_string(),
+                                                content: MessageContent::Voice { duration, data },
+                                                is_error: false,
+                                                timestamp: chrono::Utc::now(),
+                                                reactions: Vec::new(),
+                                            }));
+                                        }
+                                        FromServer::Reaction { message_id, emoji, author, .. } => {
+                                            // Find the message and update its reactions
+                                            chat_state_listener.dispatch(ChatAction::AddReaction {
+                                                msg_index: chat_state_listener.messages.iter().position(|m| m.id == message_id).unwrap_or(0),
+                                                emoji,
+                                                user: author.to_string(),
+                                            });
+                                        }
                                         FromServer::GroupsList(list) => {
                                             chat_state_listener.dispatch(ChatAction::SetGroups(list));
                                         }
                                         FromServer::Error(err) => {
                                             chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
+                                                id: uuid::Uuid::new_v4().to_string(),
                                                 author: "Error".to_string(),
                                                 content: MessageContent::Text(err),
                                                 is_self: false,
@@ -298,6 +330,7 @@ pub fn app() -> Html {
                     connected_listener.set(false);
                     tx_listener.set(None);
                     chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
+                        id: uuid::Uuid::new_v4().to_string(),
                         author: "System".to_string(),
                         content: MessageContent::Text("Connection lost.".to_string()),
                         is_self: false,
