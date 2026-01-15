@@ -560,7 +560,7 @@ pub fn app() -> Html {
                                     Ok(stream) => {
                                         let media_stream: web_sys::MediaStream = stream.into();
                                         
-                                        if let Ok(recorder) = web_sys::MediaRecorder::new(&media_stream) {
+                                        if let Ok(recorder) = web_sys::MediaRecorder::new_with_media_stream(&media_stream) {
                                             let chunks: Vec<web_sys::Blob> = Vec::new();
                                             let recorder_clone = recorder.clone();
                                             let recording_state = recording_state.clone();
