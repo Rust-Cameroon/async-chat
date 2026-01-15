@@ -99,12 +99,7 @@ pub fn app() -> Html {
     let is_typing = use_state(|| false);
     let notifications_enabled = use_state(|| false);
     let show_file_confirm = use_state(|| false);
-    let show_voice_confirm = use_state(|| false);
-    let pending_file_data = use_state(|| None::<(String, String)>); // (filename, base64_data)
-    let pending_voice_data = use_state(|| None::<(f64, String)>); // (duration, base64_data)
-    let audio_chunks = use_state(|| Vec::<Vec<u8>>::new());
-    let media_recorder = use_state(|| None::<web_sys::MediaRecorder>());
-    let recording_start_time = use_state(|| None::<f64>);
+    let _pending_file_data = use_state(|| None::<(String, String)>); // (filename, base64_data) - for future use
     
     // Request notification permission on mount
     {
