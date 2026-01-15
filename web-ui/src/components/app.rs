@@ -8,6 +8,8 @@ use std::sync::Arc;
 use futures::channel::mpsc;
 use web_sys::HtmlInputElement;
 use stylist::yew::styled_component;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 #[derive(Clone, PartialEq)]
 enum MessageContent {
@@ -785,11 +787,11 @@ pub fn app() -> Html {
                             onkeypress={on_keypress}
                         />
                         <div style="display: flex; gap: 12px; padding: 0 10px; border-left: 1px solid #f0f0f0;">
-                            <span onclick={on_file_click} class={icon_btn_style.clone()}>{"📷"}</span>
+                            <span onclick={on_file_click.clone()} class={icon_btn_style.clone()}>{"📷"}</span>
                             <span class={icon_btn_style.clone()}>{"🎤"}</span>
                         </div>
                     </div>
-                    <button onclick={on_send} class={send_circle_btn_style}>
+                    <button onclick={on_send} class={send_circle_btn}>
                         {"➔"}
                     </button>
                 </footer>
