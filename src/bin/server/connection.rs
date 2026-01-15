@@ -80,6 +80,24 @@ pub async fn serve(socket: WebSocketStream<TcpStream>, groups: Arc<GroupTable>) 
                                     None => Err(format!("Group '{}' does not exist", group_name)),
                                 }
                             }
+                            FromClient::PostVoice { group_name, author, duration, data } => {
+                                match groups.get(&*group_name) {
+                                    Some(group) => {
+                                        group.post_voice(author, duration, data);
+                                        Ok(())
+                                    }
+                                    None => Err(format!("Group '{}' does not exist", group_name)),
+                                }
+                            }
+                            FromClient::PostReaction { group_name, author, message_id, emoji } => {
+                                match groups.get(&*group_name) {
+                                    Some(group) => {
+                                        group.post_reaction(author, message_id, emoji);
+                                        Ok(())
+                                    }
+                                    None => Err(format!("Group '{}' does not exist", group_name)),
+                                }
+                            }
                         };
                         // If an error occurred (logical error), send an error message back to the client
                         if let Err(message) = result {
