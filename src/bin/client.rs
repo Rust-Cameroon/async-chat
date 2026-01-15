@@ -150,6 +150,12 @@ async fn handle_replies(from_server: net::TcpStream) -> anyhow::Result<()> {
             FromServer::Error(error) => {
                 eprintln!("Error: {}", error);
             }
+            FromServer::File { author, filename, .. } => {
+                println!("{}: posted file {}: (File data not shown in CLI)", author, filename);
+            }
+            FromServer::GroupsList(list) => {
+                println!("Active groups: {}", list.join(", "));
+            }
         }
     }
 
