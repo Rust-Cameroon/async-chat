@@ -1020,6 +1020,19 @@ pub fn app() -> Html {
                                                     }
                                                 }
                                             }
+                                            MessageContent::Voice { duration, data } => {
+                                                html! {
+                                                    <div style="display: flex; align-items: center; gap: 10px; min-width: 200px;">
+                                                        <span style="font-size: 1.5rem;">{"🎤"}</span>
+                                                        <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                                                            <audio controls=true src={data.clone()} style="width: 100%; height: 30px;" />
+                                                            <span style="font-size: 0.7rem; opacity: 0.7;">
+                                                                {format!("Voice message ({:.1}s)", duration)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            }
                                         }}
                                     </div>
                                     
@@ -1044,20 +1057,30 @@ pub fn app() -> Html {
                                     
                                     // Quick reactions
                                     { if !m.is_error {
-                                        let chat_state_clone = chat_state.clone();
+                                        let tx_clone = tx.clone();
+                                        let group_ref_clone = group_ref.clone();
                                         let my_name_clone = my_name.clone();
+                                        let msg_id = m.id.clone();
                                         html! {
                                             <div style="display: flex; gap: 8px; margin-top: 5px; opacity: 0.6; font-size: 0.9rem;">
                                                 { for ["❤️", "👍", "😂", "🎉"].iter().map(|&emoji| {
-                                                    let chat_state_inner = chat_state_clone.clone();
+                                                    let tx_inner = tx_clone.clone();
+                                                    let group_ref_inner = group_ref_clone.clone();
                                                     let my_name_inner = my_name_clone.clone();
+                                                    let msg_id_inner = msg_id.clone();
                                                     let emoji_str = emoji.to_string();
                                                     let on_react = Callback::from(move |_: MouseEvent| {
-                                                        chat_state_inner.dispatch(ChatAction::AddReaction {
-                                                            msg_index: msg_idx,
-                                                            emoji: emoji_str.clone(),
-                                                            user: my_name_inner.clone(),
-                                                        });
+                                                        if let Some(sender) = &*tx_inner {
+                                                            if let Some(group_el) = group_ref_inner.cast::<HtmlInputElement>() {
+                                                                let group_name = group_el.value().trim().to_string();
+                                                                let _ = sender.unbounded_send(FromClient::PostReaction {
+                                                                    group_name: Arc::new(group_name),
+                                                                    author: Arc::new(my_name_inner.clone()),
+                                                                    message_id: msg_id_inner.clone(),
+                                                                    emoji: emoji_str.clone(),
+                                                                });
+                                                            }
+                                                        }
                                                     });
                                                     html! {
                                                         <span 
