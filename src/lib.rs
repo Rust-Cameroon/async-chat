@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 pub mod utils;
 
 /// Messages that clients can send to the server.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum FromClient {
     /// Join a group by name.
     Join { group_name: Arc<String> },
@@ -19,9 +19,16 @@ pub enum FromClient {
         author: Arc<String>,
         message: Arc<String>,
     },
+    RequestGroups,
+    PostFile {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        filename: String,
+        data: String, // Base64
+    },
 }
 /// Messages that the server sends back to clients.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum FromServer {
     /// A message has been posted to a group.
     Message {
