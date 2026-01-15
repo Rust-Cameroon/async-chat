@@ -69,6 +69,20 @@ pub fn app() -> Html {
     let connected = use_state(|| false);
     
     let tx = use_state(|| None::<mpsc::UnboundedSender<FromClient>>);
+    
+    let left_sidebar_visible = use_state(|| true);
+    let right_sidebar_visible = use_state(|| true);
+    let is_recording = use_state(|| false);
+    let my_name_state = use_state(|| "Me".to_string());
+
+    let on_name_input = {
+        let my_name_state = my_name_state.clone();
+        Callback::from(move |e: InputEvent| {
+            let input: HtmlInputElement = e.target_unchecked_into();
+            let val = input.value();
+            my_name_state.set(if val.trim().is_empty() { "Me".to_string() } else { val });
+        })
+    };
 
     // Auto-scroll effect
     {
