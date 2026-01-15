@@ -1091,7 +1091,16 @@ pub fn app() -> Html {
                 <header class={chat_header_style}>
                     <div style="display: flex; align-items: center; gap: 15px;">
                         { if !*left_sidebar_visible {
-                            html! { <span onclick={toggle_left.clone()} style="cursor: pointer; font-size: 1.5rem; margin-right: 10px; padding: 5px 10px; background: #0084ff; color: white; border-radius: 8px;" title="Show Sidebar">{"☰"}</span> }
+                            html! { 
+                                <span 
+                                    onclick={toggle_left.clone()} 
+                                    style="cursor: pointer; font-size: 1.3rem; margin-right: 10px; padding: 8px 12px; background: #0084ff; color: white; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 500; box-shadow: 0 2px 8px rgba(0,132,255,0.3);" 
+                                    title="Show Sidebar"
+                                    class={css!("transition: all 0.2s; &:hover { transform: scale(1.05); background: #0073e6; }")}
+                                >
+                                    {"☰"}<span style="font-size: 0.85rem;">{"Menu"}</span>
+                                </span> 
+                            }
                         } else { html! {} }}
                         <img src="https://ui-avatars.com/api/?name=Group&background=2ecc71&color=fff" class={avatar_style.clone()} style="width: 40px; height: 40px;" />
                         <div>
