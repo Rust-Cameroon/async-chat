@@ -38,6 +38,13 @@ pub enum FromServer {
     },
     /// The server encountered an error.
     Error(String),
+    File {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        filename: String,
+        data: String, // Base64
+    },
+    GroupsList(Vec<String>),
 }
 
 #[cfg(test)]
