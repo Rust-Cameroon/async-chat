@@ -23,17 +23,22 @@ struct ChatMessage {
     content: MessageContent,
     is_self: bool,
     is_error: bool,
+    timestamp: chrono::DateTime<chrono::Utc>,
+    reactions: Vec<(String, String)>, // (emoji, user_name)
 }
 
 enum ChatAction {
     AddMessage(ChatMessage),
     SetGroups(Vec<String>),
     Clear,
+    AddReaction { msg_index: usize, emoji: String, user: String },
+    SetTypingUsers(Vec<String>),
 }
 
 struct ChatState {
     messages: Vec<ChatMessage>,
     groups: Vec<String>,
+    typing_users: Vec<String>,
 }
 
 impl Reducible for ChatState {
@@ -42,6 +47,7 @@ impl Reducible for ChatState {
     fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
         let mut messages = self.messages.clone();
         let mut groups = self.groups.clone();
+        let mut typing_users = self.typing_users.clone();
         match action {
             ChatAction::AddMessage(msg) => {
                 messages.push(msg);
@@ -52,8 +58,21 @@ impl Reducible for ChatState {
             ChatAction::Clear => {
                 messages.clear();
             }
+            ChatAction::AddReaction { msg_index, emoji, user } => {
+                if let Some(msg) = messages.get_mut(msg_index) {
+                    // Toggle reaction: remove if exists, add if not
+                    if let Some(pos) = msg.reactions.iter().position(|(e, u)| e == &emoji && u == &user) {
+                        msg.reactions.remove(pos);
+                    } else {
+                        msg.reactions.push((emoji, user));
+                    }
+                }
+            }
+            ChatAction::SetTypingUsers(users) => {
+                typing_users = users;
+            }
         }
-        Self { messages, groups }.into()
+        Self { messages, groups, typing_users }.into()
     }
 }
 
@@ -61,7 +80,7 @@ use std::rc::Rc;
 
 #[styled_component(App)]
 pub fn app() -> Html {
-    let chat_state = use_reducer(|| ChatState { messages: Vec::new(), groups: Vec::new() });
+    let chat_state = use_reducer(|| ChatState { messages: Vec::new(), groups: Vec::new(), typing_users: Vec::new() });
     let input_ref = use_node_ref();
     let group_ref = use_node_ref();
     let name_ref = use_node_ref();
@@ -74,6 +93,8 @@ pub fn app() -> Html {
     let right_sidebar_visible = use_state(|| true);
     let is_recording = use_state(|| false);
     let my_name_state = use_state(|| "Me".to_string());
+    let dark_mode = use_state(|| false);
+    let is_typing = use_state(|| false);
 
     let on_name_input = {
         let my_name_state = my_name_state.clone();
@@ -140,7 +161,7 @@ pub fn app() -> Html {
             let my_name_captured = my_name.clone();
             
             spawn_local(async move {
-                let ws = match WebSocket::open("ws://127.0.0.1:8000") {
+                let ws = match WebSocket::open("ws://100.106.16.106:8000") {
                     Ok(ws) => ws,
                     Err(e) => {
                         chat_state.dispatch(ChatAction::AddMessage(ChatMessage {
@@ -148,6 +169,8 @@ pub fn app() -> Html {
                             content: MessageContent::Text(format!("Connection error: {:?}", e)),
                             is_self: false,
                             is_error: true,
+                            timestamp: chrono::Utc::now(),
+                            reactions: Vec::new(),
                         }));
                         return;
                     }
@@ -177,6 +200,8 @@ pub fn app() -> Html {
                                                 author: author.to_string(),
                                                 content: MessageContent::Text(message.to_string()),
                                                 is_error: false,
+                                                timestamp: chrono::Utc::now(),
+                                                reactions: Vec::new(),
                                             }));
                                         }
                                         FromServer::File { author, filename, data, .. } => {
@@ -185,6 +210,8 @@ pub fn app() -> Html {
                                                 author: author.to_string(),
                                                 content: MessageContent::File { filename, data },
                                                 is_error: false,
+                                                timestamp: chrono::Utc::now(),
+                                                reactions: Vec::new(),
                                             }));
                                         }
                                         FromServer::GroupsList(list) => {
@@ -196,6 +223,8 @@ pub fn app() -> Html {
                                                 content: MessageContent::Text(err),
                                                 is_self: false,
                                                 is_error: true,
+                                                timestamp: chrono::Utc::now(),
+                                                reactions: Vec::new(),
                                             }));
                                         }
                                     }
@@ -212,6 +241,8 @@ pub fn app() -> Html {
                         content: MessageContent::Text("Connection lost.".to_string()),
                         is_self: false,
                         is_error: true,
+                        timestamp: chrono::Utc::now(),
+                        reactions: Vec::new(),
                     }));
                 });
 
@@ -353,17 +384,42 @@ pub fn app() -> Html {
 
     let on_keypress = {
         let on_send = on_send.clone();
+        let is_typing = is_typing.clone();
         Callback::from(move |e: KeyboardEvent| {
             if e.key() == "Enter" {
                 on_send.emit(MouseEvent::new("click").unwrap());
+                is_typing.set(false);
+            } else {
+                is_typing.set(true);
             }
         })
+    };
+
+    let on_input_change = {
+        let is_typing = is_typing.clone();
+        Callback::from(move |e: InputEvent| {
+            let input: HtmlInputElement = e.target_unchecked_into();
+            is_typing.set(!input.value().is_empty());
+        })
+    };
+
+    let toggle_dark_mode = {
+        let dark_mode = dark_mode.clone();
+        Callback::from(move |_: MouseEvent| dark_mode.set(!*dark_mode))
     };
 
     // --- Styles ---
 
     let left_w = if *left_sidebar_visible { "300px" } else { "0px" };
     let right_w = if *right_sidebar_visible { "350px" } else { "0px" };
+    
+    // Dark mode colors
+    let bg_color = if *dark_mode { "#1a1a1a" } else { "white" };
+    let text_color = if *dark_mode { "#e0e0e0" } else { "#1a1a1a" };
+    let sidebar_bg = if *dark_mode { "#2d2d2d" } else { "#f7f9fa" };
+    let border_color = if *dark_mode { "#3a3a3a" } else { "#e1e4e8" };
+    let input_bg = if *dark_mode { "#2d2d2d" } else { "white" };
+    let hover_bg = if *dark_mode { "#3a3a3a" } else { "#edf2f7" };
 
     let container_style = css!(r#"
         display: grid;
@@ -371,10 +427,10 @@ pub fn app() -> Html {
         height: 100vh;
         width: 100vw;
         font-family: 'Inter', sans-serif;
-        background-color: white;
-        color: #1a1a1a;
+        background-color: ${bg};
+        color: ${text};
         overflow: hidden;
-        transition: grid-template-columns 0.3s ease;
+        transition: all 0.3s ease;
 
         @media (max-width: 1200px) {
             grid-template-columns: ${left} 1fr 0px;
@@ -382,17 +438,18 @@ pub fn app() -> Html {
         @media (max-width: 800px) {
             grid-template-columns: 0px 1fr 0px;
         }
-    "#, left=left_w, right=right_w);
+    "#, left=left_w, right=right_w, bg=bg_color, text=text_color);
 
     // Sidebar Left Styles
     let sidebar_left_style = css!(r#"
-        background-color: #f7f9fa;
-        border-right: 1px solid #e1e4e8;
+        background-color: ${sidebar_bg};
+        border-right: 1px solid ${border};
         display: flex;
         flex-direction: column;
         padding: 20px 0;
         overflow: hidden;
-    "#);
+        transition: all 0.3s ease;
+    "#, sidebar_bg=sidebar_bg, border=border_color);
 
     let profile_small_style = css!(r#"
         display: flex;
@@ -429,12 +486,14 @@ pub fn app() -> Html {
         width: 100%;
         padding: 10px 15px 10px 40px;
         border-radius: 20px;
-        border: 1px solid #e1e4e8;
-        background-color: white;
+        border: 1px solid ${border};
+        background-color: ${input_bg};
+        color: ${text};
         font-size: 0.9rem;
         outline: none;
-        &:focus { border-color: #3498db; }
-    "#);
+        transition: all 0.2s ease;
+        &:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1); }
+    "#, border=border_color, input_bg=input_bg, text=text_color);
 
     let contact_item_style = css!(r#"
         display: flex;
@@ -442,26 +501,33 @@ pub fn app() -> Html {
         padding: 12px 20px;
         gap: 15px;
         cursor: pointer;
-        transition: background 0.2s;
-        &:hover { background-color: #edf2f7; }
+        transition: all 0.2s ease;
+        border-radius: 8px;
+        margin: 0 10px;
+        &:hover { 
+            background-color: ${hover}; 
+            transform: translateX(5px);
+        }
         &.active { background-color: #e2e8f0; }
-    "#);
+    "#, hover=hover_bg);
 
     // Main Chat Styles
     let chat_main_style = css!(r#"
         display: flex;
         flex-direction: column;
-        background-color: white;
+        background-color: ${bg};
         overflow: hidden;
-    "#);
+        transition: all 0.3s ease;
+    "#, bg=bg_color);
 
     let chat_header_style = css!(r#"
         display: flex;
         justify-content: space-between;
         align-items: center;
         padding: 15px 25px;
-        border-bottom: 1px solid #f0f0f0;
-    "#);
+        border-bottom: 1px solid ${border};
+        transition: all 0.3s ease;
+    "#, border=border_color);
 
     let chat_messages_style = css!(r#"
         flex: 1;
@@ -470,8 +536,10 @@ pub fn app() -> Html {
         display: flex;
         flex-direction: column;
         gap: 20px;
-        background-color: white;
-    "#);
+        background-color: ${bg};
+        transition: all 0.3s ease;
+        scroll-behavior: smooth;
+    "#, bg=bg_color);
 
     let chat_footer_style = css!(r#"
         padding: 15px 25px 25px;
