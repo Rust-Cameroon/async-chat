@@ -100,6 +100,7 @@ pub fn app() -> Html {
     let notifications_enabled = use_state(|| false);
     let show_emoji_picker = use_state(|| false);
     let recording_state = use_state(|| None::<(web_sys::MediaRecorder, Vec<web_sys::Blob>, f64)>); // (recorder, chunks, start_time)
+    let search_query = use_state(|| String::new());
     
     // Request notification permission on mount
     {
@@ -392,6 +393,14 @@ pub fn app() -> Html {
         Callback::from(move |_: MouseEvent| show_emojis.set(!*show_emojis))
     };
 
+    let on_search_input = {
+        let search_query = search_query.clone();
+        Callback::from(move |e: InputEvent| {
+            let input: HtmlInputElement = e.target_unchecked_into();
+            search_query.set(input.value().to_lowercase());
+        })
+    };
+
     let on_select_emoji = {
         let input_ref = input_ref.clone();
         let show_emojis = show_emojis.clone();
@@ -672,6 +681,7 @@ pub fn app() -> Html {
         padding: 20px 0;
         overflow: hidden;
         transition: all 0.3s ease;
+        min-width: 0;
     "#, sidebar_bg=sidebar_bg, border=border_color);
 
     let profile_small_style = css!(r#"
@@ -1001,7 +1011,7 @@ pub fn app() -> Html {
 
     html! {
         <div class={container_style}>
-            <aside class={if *left_sidebar_visible { sidebar_left_style.clone() } else { css!("display: none;") }}>
+            <aside class={sidebar_left_style.clone()} style={if *left_sidebar_visible { "width: 300px;" } else { "width: 0; padding: 0; border: none; visibility: hidden;" }}>
                 <div class={profile_small_style}>
                     <img src={format!("https://ui-avatars.com/api/?name={}&background=3498db&color=fff", *my_name_state)} class={avatar_style.clone()} alt="Me" />
                     <div style="flex: 1;">
@@ -1012,40 +1022,60 @@ pub fn app() -> Html {
                 </div>
 
                 <div class={search_bar_container.clone()}>
-                    <input class={search_input_style.clone()} placeholder="Search Here..." />
+                    <input 
+                        class={search_input_style.clone()} 
+                        placeholder="Search groups & contacts..." 
+                        oninput={on_search_input}
+                        value={(*search_query).clone()}
+                    />
                 </div>
 
                 <div style="flex: 1; overflow-y: auto;">
-                    { for chat_state.groups.iter().map(|group| {
-                        let group_clone = group.clone();
-                        let on_group_click = {
-                            let group_ref = group_ref.clone();
-                            let on_join = on_join.clone();
-                            Callback::from(move |_: MouseEvent| {
-                                if let Some(input) = group_ref.cast::<HtmlInputElement>() {
-                                    input.set_value(&group_clone);
-                                    on_join.emit(MouseEvent::new("click").unwrap());
-                                }
-                            })
-                        };
-                        html! {
-                            <div onclick={on_group_click} class={contact_item_style.clone()}>
-                                <img src={format!("https://ui-avatars.com/api/?name={}&background=random", group)} class={avatar_style.clone()} />
-                                <div style="flex: 1;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: 600; font-size: 0.9rem;">{ group }</span>
+                    { for chat_state.groups.iter()
+                        .filter(|group| {
+                            // Filter by search query
+                            search_query.is_empty() || group.to_lowercase().contains(&*search_query)
+                        })
+                        .map(|group| {
+                            let group_clone = group.clone();
+                            let on_group_click = {
+                                let group_ref = group_ref.clone();
+                                let on_join = on_join.clone();
+                                Callback::from(move |_: MouseEvent| {
+                                    if let Some(input) = group_ref.cast::<HtmlInputElement>() {
+                                        input.set_value(&group_clone);
+                                        on_join.emit(MouseEvent::new("click").unwrap());
+                                    }
+                                })
+                            };
+                            html! {
+                                <div onclick={on_group_click} class={contact_item_style.clone()}>
+                                    <img src={format!("https://ui-avatars.com/api/?name={}&background=random", group)} class={avatar_style.clone()} />
+                                    <div style="flex: 1;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="font-weight: 600; font-size: 0.9rem;">{ group }</span>
+                                        </div>
+                                        <div style="font-size: 0.75rem; opacity: 0.6;">{"Public Group"}</div>
                                     </div>
-                                    <div style="font-size: 0.75rem; opacity: 0.6;">{"Public Group"}</div>
                                 </div>
+                            }
+                        })
+                    }
+                    
+                    // Show "no results" message when searching
+                    { if !search_query.is_empty() && chat_state.groups.iter().filter(|g| g.to_lowercase().contains(&*search_query)).count() == 0 {
+                        html! {
+                            <div style="padding: 20px; text-align: center; opacity: 0.6; font-size: 0.85rem;">
+                                {"No groups found matching \""}{&*search_query}{"\""}
                             </div>
                         }
-                    })}
+                    } else { html! {} }}
                     
                     <div style="padding: 15px 20px;">
                          <div style="font-size: 0.7rem; font-weight: 700; color: #a0aec0; margin-bottom: 10px;">{"SYSTEM CONTROLS"}</div>
                          <div style="display: flex; flex-direction: column; gap: 8px;">
                             <input ref={name_ref} oninput={on_name_input} class={css!("padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.8rem; outline: none;")} placeholder="Your Name" />
-                            <input ref={group_ref} class={css!("padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.8rem; outline: none;")} placeholder="Group to Join" />
+                            <input ref={group_ref.clone()} class={css!("padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.8rem; outline: none;")} placeholder="Group to Join" />
                             <button onclick={on_join} class={css!("background: #3498db; color: white; border: none; padding: 8px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; font-weight: 600;")}>
                                 { if *connected { "SWITCH GROUP" } else { "CONNECT" } }
                             </button>
@@ -1058,7 +1088,7 @@ pub fn app() -> Html {
                 <header class={chat_header_style}>
                     <div style="display: flex; align-items: center; gap: 15px;">
                         { if !*left_sidebar_visible {
-                            html! { <span onclick={toggle_left} style="cursor: pointer; font-size: 1.2rem; margin-right: 10px;" title="Show Sidebar">{"⇢"}</span> }
+                            html! { <span onclick={toggle_left.clone()} style="cursor: pointer; font-size: 1.5rem; margin-right: 10px; padding: 5px 10px; background: #0084ff; color: white; border-radius: 8px;" title="Show Sidebar">{"☰"}</span> }
                         } else { html! {} }}
                         <img src="https://ui-avatars.com/api/?name=Group&background=2ecc71&color=fff" class={avatar_style.clone()} style="width: 40px; height: 40px;" />
                         <div>
@@ -1183,23 +1213,41 @@ pub fn app() -> Html {
                                     // Quick reactions
                                     { if !m.is_error {
                                         let tx_clone = tx.clone();
+                                        let group_ref_clone = group_ref.clone();
                                         let my_name_clone = my_name.clone();
                                         let msg_id = m.id.clone();
                                         html! {
                                             <div style="display: flex; gap: 8px; margin-top: 5px; opacity: 0.6; font-size: 0.9rem;">
                                                 { for ["❤️", "👍", "😂", "🎉"].iter().map(|&emoji| {
                                                     let chat_state_inner = chat_state.clone();
+                                                    let tx_inner = tx_clone.clone();
+                                                    let group_ref_inner = group_ref_clone.clone();
                                                     let my_name_inner = my_name_clone.clone();
                                                     let msg_id_inner = msg_id.clone();
                                                     let emoji_str = emoji.to_string();
                                                     let msg_idx_inner = msg_idx;
                                                     let on_react = Callback::from(move |_: MouseEvent| {
-                                                        // Just update local state - server broadcast will sync
+                                                        // Update local state immediately for instant feedback
                                                         chat_state_inner.dispatch(ChatAction::AddReaction {
                                                             msg_index: msg_idx_inner,
                                                             emoji: emoji_str.clone(),
                                                             user: my_name_inner.clone(),
                                                         });
+                                                        
+                                                        // Send reaction to server for broadcast to other clients
+                                                        if let Some(sender) = &*tx_inner {
+                                                            if let Some(group_el) = group_ref_inner.cast::<HtmlInputElement>() {
+                                                                let group_name = group_el.value().trim().to_string();
+                                                                if !group_name.is_empty() {
+                                                                    let _ = sender.unbounded_send(FromClient::PostReaction {
+                                                                        group_name: Arc::new(group_name),
+                                                                        author: Arc::new(my_name_inner.clone()),
+                                                                        message_id: msg_id_inner.clone(),
+                                                                        emoji: emoji_str.clone(),
+                                                                    });
+                                                                }
+                                                            }
+                                                        }
                                                     });
                                                     html! {
                                                         <span 
@@ -1234,28 +1282,101 @@ pub fn app() -> Html {
                     />
 
                     { if *show_emojis {
+                        let emoji_picker_bg = if *dark_mode { "#2d2d2d" } else { "white" };
+                        let emoji_border = if *dark_mode { "#3a3a3a" } else { "#e1e4e8" };
                         html! {
-                            <div class={css!(r#"
-                                position: absolute;
-                                bottom: 80px;
-                                left: 20px;
-                                background: white;
-                                border: 1px solid #e1e4e8;
-                                border-radius: 12px;
-                                padding: 10px;
-                                display: grid;
-                                grid-template-columns: repeat(6, 1fr);
-                                gap: 10px;
-                                box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-                                z-index: 100;
-                            "#)}>
-                                { for ["😀", "😂", "🥰", "👍", "🔥", "🚀", "✨", "🎉", "🤔", "👋", "❤️", "✔️"].iter().map(|&e| {
-                                    let on_click = {
-                                        let on_select_emoji = on_select_emoji.clone();
-                                        Callback::from(move |_: MouseEvent| on_select_emoji.emit(e))
-                                    };
-                                    html! { <span onclick={on_click} style="cursor: pointer; font-size: 1.5rem;">{ e }</span> }
-                                })}
+                            <div style={format!("position: absolute; bottom: 80px; left: 20px; background: {}; border: 1px solid {}; border-radius: 16px; padding: 15px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); z-index: 100; max-width: 350px; max-height: 400px; overflow-y: auto;", emoji_picker_bg, emoji_border)}>
+                                // Smileys & Emotion
+                                <div style="margin-bottom: 10px;">
+                                    <div style="font-size: 0.7rem; font-weight: 600; margin-bottom: 8px; opacity: 0.6;">{"😀 Smileys"}</div>
+                                    <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px;">
+                                        { for ["😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙", "🥲", "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔", "🤐", "🤨", "😐", "😑", "😶", "😏", "😒", "🙄", "😬", "🤥", "😌", "😔", "😪", "🤤", "😴", "😷", "🤒", "🤕", "🤢", "🤮", "🥴", "😵", "🤯", "🤠", "🥳", "🥸", "😎", "🤓", "🧐", "😕", "😟", "🙁", "☹️", "😮", "😯", "😲", "😳", "🥺", "😦", "😧", "😨", "😰", "😥", "😢", "😭", "😱", "😖", "😣", "😞", "😓", "😩", "😫", "🥱", "😤", "😡", "😠", "🤬", "😈", "👿", "💀", "☠️", "💩", "🤡", "👹", "👺", "👻", "👽", "👾", "🤖"].iter().map(|&e| {
+                                            let on_click = {
+                                                let on_select_emoji = on_select_emoji.clone();
+                                                Callback::from(move |_: MouseEvent| on_select_emoji.emit(e))
+                                            };
+                                            html! { <span onclick={on_click} class={css!("cursor: pointer; font-size: 1.4rem; padding: 3px; border-radius: 5px; transition: all 0.15s; &:hover { background: rgba(0,0,0,0.1); transform: scale(1.2); }")}>{ e }</span> }
+                                        })}
+                                    </div>
+                                </div>
+                                // Gestures & People
+                                <div style="margin-bottom: 10px;">
+                                    <div style="font-size: 0.7rem; font-weight: 600; margin-bottom: 8px; opacity: 0.6;">{"👋 Gestures"}</div>
+                                    <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px;">
+                                        { for ["👋", "🤚", "🖐️", "✋", "🖖", "👌", "🤌", "🤏", "✌️", "🤞", "🤟", "🤘", "🤙", "👈", "👉", "👆", "🖕", "👇", "☝️", "👍", "👎", "✊", "👊", "🤛", "🤜", "👏", "🙌", "👐", "🤲", "🤝", "🙏", "✍️", "💅", "🤳", "💪", "🦾", "🦿", "🦵", "🦶", "👂", "🦻", "👃", "🧠", "🫀", "🫁", "🦷", "🦴", "👀", "👁️", "👅", "👄"].iter().map(|&e| {
+                                            let on_click = {
+                                                let on_select_emoji = on_select_emoji.clone();
+                                                Callback::from(move |_: MouseEvent| on_select_emoji.emit(e))
+                                            };
+                                            html! { <span onclick={on_click} class={css!("cursor: pointer; font-size: 1.4rem; padding: 3px; border-radius: 5px; transition: all 0.15s; &:hover { background: rgba(0,0,0,0.1); transform: scale(1.2); }")}>{ e }</span> }
+                                        })}
+                                    </div>
+                                </div>
+                                // Hearts & Love
+                                <div style="margin-bottom: 10px;">
+                                    <div style="font-size: 0.7rem; font-weight: 600; margin-bottom: 8px; opacity: 0.6;">{"❤️ Hearts"}</div>
+                                    <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px;">
+                                        { for ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔", "❣️", "💕", "💞", "💓", "💗", "💖", "💘", "💝", "💟", "♥️", "💋", "💯", "💢", "💥", "💫", "💦", "💨", "🕳️", "💣", "💬", "👁️‍🗨️", "🗨️", "🗯️", "💭", "💤"].iter().map(|&e| {
+                                            let on_click = {
+                                                let on_select_emoji = on_select_emoji.clone();
+                                                Callback::from(move |_: MouseEvent| on_select_emoji.emit(e))
+                                            };
+                                            html! { <span onclick={on_click} class={css!("cursor: pointer; font-size: 1.4rem; padding: 3px; border-radius: 5px; transition: all 0.15s; &:hover { background: rgba(0,0,0,0.1); transform: scale(1.2); }")}>{ e }</span> }
+                                        })}
+                                    </div>
+                                </div>
+                                // Animals & Nature
+                                <div style="margin-bottom: 10px;">
+                                    <div style="font-size: 0.7rem; font-weight: 600; margin-bottom: 8px; opacity: 0.6;">{"🐶 Animals"}</div>
+                                    <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px;">
+                                        { for ["🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮", "🐷", "🐸", "🐵", "🙈", "🙉", "🙊", "🐒", "🐔", "🐧", "🐦", "🐤", "🐣", "🐥", "🦆", "🦅", "🦉", "🦇", "🐺", "🐗", "🐴", "🦄", "🐝", "🐛", "🦋", "🐌", "🐞", "🐜", "🦟", "🦗", "🦂", "🐢", "🐍", "🦎", "🦖", "🦕", "🐙", "🦑", "🦐", "🦞", "🦀", "🐡", "🐠", "🐟", "🐬", "🐳", "🐋", "🦈", "🐊", "🐅", "🐆", "🦓", "🦍", "🦧", "🐘", "🦛", "🦏", "🐪", "🐫", "🦒", "🦘", "🐃", "🐂", "🐄", "🐎", "🐖", "🐏", "🐑", "🦙", "🐐", "🦌", "🐕", "🐩", "🦮", "🐈", "🐓", "🦃", "🦚", "🦜", "🦢", "🦩", "🐇", "🦝", "🦨", "🦡", "🦦", "🦥", "🐁", "🐀", "🐿️", "🦔"].iter().map(|&e| {
+                                            let on_click = {
+                                                let on_select_emoji = on_select_emoji.clone();
+                                                Callback::from(move |_: MouseEvent| on_select_emoji.emit(e))
+                                            };
+                                            html! { <span onclick={on_click} class={css!("cursor: pointer; font-size: 1.4rem; padding: 3px; border-radius: 5px; transition: all 0.15s; &:hover { background: rgba(0,0,0,0.1); transform: scale(1.2); }")}>{ e }</span> }
+                                        })}
+                                    </div>
+                                </div>
+                                // Food & Drink
+                                <div style="margin-bottom: 10px;">
+                                    <div style="font-size: 0.7rem; font-weight: 600; margin-bottom: 8px; opacity: 0.6;">{"🍕 Food"}</div>
+                                    <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px;">
+                                        { for ["🍇", "🍈", "🍉", "🍊", "🍋", "🍌", "🍍", "🥭", "🍎", "🍏", "🍐", "🍑", "🍒", "🍓", "🫐", "🥝", "🍅", "🫒", "🥥", "🥑", "🍆", "🥔", "🥕", "🌽", "🌶️", "🫑", "🥒", "🥬", "🥦", "🧄", "🧅", "🍄", "🥜", "🌰", "🍞", "🥐", "🥖", "🫓", "🥨", "🥯", "🥞", "🧇", "🧀", "🍖", "🍗", "🥩", "🥓", "🍔", "🍟", "🍕", "🌭", "🥪", "🌮", "🌯", "🫔", "🥙", "🧆", "🥚", "🍳", "🥘", "🍲", "🫕", "🥣", "🥗", "🍿", "🧈", "🧂", "🥫", "🍱", "🍘", "🍙", "🍚", "🍛", "🍜", "🍝", "🍠", "🍢", "🍣", "🍤", "🍥", "🥮", "🍡", "🥟", "🥠", "🥡", "🦀", "🦞", "🦐", "🦑", "🦪", "🍦", "🍧", "🍨", "🍩", "🍪", "🎂", "🍰", "🧁", "🥧", "🍫", "🍬", "🍭", "🍮", "🍯", "🍼", "🥛", "☕", "🫖", "🍵", "🍶", "🍾", "🍷", "🍸", "🍹", "🍺", "🍻", "🥂", "🥃", "🥤", "🧋", "🧃", "🧉", "🧊"].iter().map(|&e| {
+                                            let on_click = {
+                                                let on_select_emoji = on_select_emoji.clone();
+                                                Callback::from(move |_: MouseEvent| on_select_emoji.emit(e))
+                                            };
+                                            html! { <span onclick={on_click} class={css!("cursor: pointer; font-size: 1.4rem; padding: 3px; border-radius: 5px; transition: all 0.15s; &:hover { background: rgba(0,0,0,0.1); transform: scale(1.2); }")}>{ e }</span> }
+                                        })}
+                                    </div>
+                                </div>
+                                // Activities & Celebrations
+                                <div style="margin-bottom: 10px;">
+                                    <div style="font-size: 0.7rem; font-weight: 600; margin-bottom: 8px; opacity: 0.6;">{"🎉 Activities"}</div>
+                                    <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px;">
+                                        { for ["⚽", "🏀", "🏈", "⚾", "🥎", "🎾", "🏐", "🏉", "🥏", "🎱", "🪀", "🏓", "🏸", "🏒", "🏑", "🥍", "🏏", "🪃", "🥅", "⛳", "🪁", "🏹", "🎣", "🤿", "🥊", "🥋", "🎽", "🛹", "🛷", "⛸️", "🥌", "🎿", "⛷️", "🏂", "🪂", "🎪", "🎭", "🎨", "🎬", "🎤", "🎧", "🎼", "🎹", "🥁", "🎷", "🎺", "🎸", "🪕", "🎻", "🎲", "♟️", "🎯", "🎳", "🎮", "🎰", "🧩", "🎁", "🎀", "🎊", "🎉", "🎈", "🪅", "🪆", "🧨", "✨", "🎇", "🎆", "🌟", "⭐", "🔥", "💫", "🌈", "☀️", "🌤️", "⛅", "🌥️", "☁️", "🌦️", "🌧️", "⛈️", "🌩️", "🌨️", "❄️", "☃️", "⛄", "🌬️", "💨", "🌪️", "🌫️", "🌊", "💧", "💦", "☔", "🔆", "🔅"].iter().map(|&e| {
+                                            let on_click = {
+                                                let on_select_emoji = on_select_emoji.clone();
+                                                Callback::from(move |_: MouseEvent| on_select_emoji.emit(e))
+                                            };
+                                            html! { <span onclick={on_click} class={css!("cursor: pointer; font-size: 1.4rem; padding: 3px; border-radius: 5px; transition: all 0.15s; &:hover { background: rgba(0,0,0,0.1); transform: scale(1.2); }")}>{ e }</span> }
+                                        })}
+                                    </div>
+                                </div>
+                                // Objects & Symbols
+                                <div style="margin-bottom: 5px;">
+                                    <div style="font-size: 0.7rem; font-weight: 600; margin-bottom: 8px; opacity: 0.6;">{"💻 Objects"}</div>
+                                    <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px;">
+                                        { for ["⌚", "📱", "💻", "⌨️", "🖥️", "🖨️", "🖱️", "🖲️", "💽", "💾", "💿", "📀", "📼", "📷", "📸", "📹", "🎥", "📽️", "🎞️", "📞", "☎️", "📟", "📠", "📺", "📻", "🎙️", "🎚️", "🎛️", "🧭", "⏱️", "⏲️", "⏰", "🕰️", "⌛", "⏳", "📡", "🔋", "🔌", "💡", "🔦", "🕯️", "🪔", "🧯", "🛢️", "💸", "💵", "💴", "💶", "💷", "🪙", "💰", "💳", "💎", "⚖️", "🪜", "🧰", "🔧", "🔨", "⚒️", "🛠️", "⛏️", "🪓", "🔩", "⚙️", "🪤", "🧱", "⛓️", "🧲", "🔫", "💣", "🧨", "🪚", "🔪", "🗡️", "⚔️", "🛡️", "🚬", "⚰️", "🪦", "⚱️", "🏺", "🔮", "📿", "🧿", "💈", "⚗️", "🔭", "🔬", "🕳️", "🩹", "🩺", "💊", "💉", "🩸", "🧬", "🦠", "🧫", "🧪", "🌡️", "🧹", "🪠", "🧺", "🧻", "🚽", "🚰", "🚿", "🛁", "🛀", "🧼", "🪥", "🪒", "🧽", "🪣", "🧴", "🛎️", "🔑", "🗝️", "🚪", "🪑", "🛋️", "🛏️", "🛌", "🧸", "🖼️", "🪞", "🪟", "🛒", "🎁", "🎈", "🎏", "🎀", "🪄", "🧧", "🎐", "🎑", "🧧", "✉️", "📩", "📨", "📧", "💌", "📥", "📤", "📦", "🏷️", "📪", "📫", "📬", "📭", "📮", "📯", "📜", "📃", "📄", "📑", "🧾", "📊", "📈", "📉", "🗒️", "🗓️", "📆", "📅", "🗑️", "📇", "🗃️", "🗳️", "🗄️", "📋", "📁", "📂", "🗂️", "🗞️", "📰", "📓", "📔", "📒", "📕", "📗", "📘", "📙", "📚", "📖", "🔖", "🧷", "🔗", "📎", "🖇️", "📐", "📏", "🧮", "📌", "📍", "✂️", "🖊️", "🖋️", "✒️", "🖌️", "🖍️", "📝", "✏️", "🔍", "🔎", "🔏", "🔐", "🔒", "🔓", "✅", "❎", "✔️", "❌", "❓", "❔", "❕", "❗", "〰️", "➕", "➖", "➗", "✖️", "💲", "💱", "™️", "©️", "®️", "🔚", "🔙", "🔛", "🔝", "🔜", "☑️", "🔘", "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "⚫", "⚪", "🟤", "🔺", "🔻", "🔸", "🔹", "🔶", "🔷", "🔳", "🔲", "▪️", "▫️", "◾", "◽", "◼️", "◻️", "🟥", "🟧", "🟨", "🟩", "🟦", "🟪", "⬛", "⬜", "🟫"].iter().map(|&e| {
+                                            let on_click = {
+                                                let on_select_emoji = on_select_emoji.clone();
+                                                Callback::from(move |_: MouseEvent| on_select_emoji.emit(e))
+                                            };
+                                            html! { <span onclick={on_click} class={css!("cursor: pointer; font-size: 1.4rem; padding: 3px; border-radius: 5px; transition: all 0.15s; &:hover { background: rgba(0,0,0,0.1); transform: scale(1.2); }")}>{ e }</span> }
+                                        })}
+                                    </div>
+                                </div>
                             </div>
                         }
                     } else { html! {} }}
@@ -1266,7 +1387,7 @@ pub fn app() -> Html {
                             <span onclick={on_emoji_click} class={icon_btn_style.clone()} title="Insert Emoji">{"😊"}</span>
                         </div>
                         <input 
-                            ref={input_ref}
+                            ref={input_ref.clone()}
                             class={css!("flex: 1; border: none; padding: 10px 15px; outline: none; font-size: 0.95rem;")} 
                             placeholder={if *is_recording { "Recording voice..." } else { "Type progress here..." }}
                             onkeypress={on_keypress.clone()}
@@ -1275,7 +1396,28 @@ pub fn app() -> Html {
                         />
                         <div style="display: flex; gap: 12px; padding: 0 10px; border-left: 1px solid #f0f0f0;">
                             <span onclick={on_file_click.clone()} class={icon_btn_style.clone()}>{"📷"}</span>
-                            <span onclick={toggle_recording} class={classes!(icon_btn_style.clone(), if *is_recording { css!("color: #e74c3c; animation: pulse 1.5s infinite;") } else { css!("") })}>{"🎤"}</span>
+                            <span onclick={toggle_recording} class={classes!(icon_btn_style.clone(), if *is_recording { css!(r#"
+                                color: #e74c3c; 
+                                animation: pulse 1.5s infinite;
+                                background: rgba(231, 76, 60, 0.1);
+                                border-radius: 50%;
+                                padding: 8px;
+                                @keyframes pulse {
+                                    0%, 100% { transform: scale(1); opacity: 1; }
+                                    50% { transform: scale(1.1); opacity: 0.8; }
+                                }
+                            "#) } else { css!(r#"
+                                &:hover { color: #e74c3c; }
+                            "#) })}>
+                                { if *is_recording { "⏹️" } else { "🎙️" } }
+                            </span>
+                            { if *is_recording {
+                                html! {
+                                    <span style="font-size: 0.75rem; color: #e74c3c; margin-left: 5px; font-weight: 600;">
+                                        {"Recording... Click to stop & send"}
+                                    </span>
+                                }
+                            } else { html! {} }}
                         </div>
                     </div>
                     <button onclick={on_send} class={send_circle_btn}>
@@ -1324,7 +1466,14 @@ pub fn app() -> Html {
                 </div>
 
                 <div class={action_grid_style}>
-                    <div class={action_card_style.clone()}>
+                    <div onclick={{
+                        let input_ref = input_ref.clone();
+                        Callback::from(move |_: MouseEvent| {
+                            if let Some(input) = input_ref.cast::<HtmlInputElement>() {
+                                input.focus().ok();
+                            }
+                        })
+                    }} class={action_card_style.clone()} style="cursor: pointer;">
                         <span class="icon">{"💬"}</span>
                         <span class="label">{"Chat"}</span>
                     </div>
@@ -1335,11 +1484,16 @@ pub fn app() -> Html {
                 </div>
 
                 <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 10px;">
-                    <div style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; padding: 5px;">
-                        <span>{"👥"}</span> {"View Friends"}
+                    <div onclick={{
+                        let left_sidebar_visible = left_sidebar_visible.clone();
+                        Callback::from(move |_: MouseEvent| {
+                            left_sidebar_visible.set(true);
+                        })
+                    }} style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; padding: 8px; border-radius: 8px; transition: background 0.2s;" class={css!("&:hover { background: rgba(0,0,0,0.05); }")}>
+                        <span>{"👥"}</span> {"View Friends / Groups"}
                     </div>
-                    <div style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; padding: 5px;">
-                        <span>{"♡"}</span> {"Add to Favorites"}
+                    <div style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; padding: 8px; border-radius: 8px; transition: background 0.2s;" class={css!("&:hover { background: rgba(0,0,0,0.05); }")}>
+                        <span>{"⭐"}</span> {"Add to Favorites"}
                     </div>
                 </div>
 
