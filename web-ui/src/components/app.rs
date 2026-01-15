@@ -10,20 +10,28 @@ use web_sys::HtmlInputElement;
 use stylist::yew::styled_component;
 
 #[derive(Clone, PartialEq)]
+enum MessageContent {
+    Text(String),
+    File { filename: String, data: String },
+}
+
+#[derive(Clone, PartialEq)]
 struct ChatMessage {
     author: String,
-    text: String,
+    content: MessageContent,
     is_self: bool,
     is_error: bool,
 }
 
 enum ChatAction {
     AddMessage(ChatMessage),
+    SetGroups(Vec<String>),
     Clear,
 }
 
 struct ChatState {
     messages: Vec<ChatMessage>,
+    groups: Vec<String>,
 }
 
 impl Reducible for ChatState {
@@ -31,15 +39,19 @@ impl Reducible for ChatState {
 
     fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
         let mut messages = self.messages.clone();
+        let mut groups = self.groups.clone();
         match action {
             ChatAction::AddMessage(msg) => {
                 messages.push(msg);
+            }
+            ChatAction::SetGroups(g) => {
+                groups = g;
             }
             ChatAction::Clear => {
                 messages.clear();
             }
         }
-        Self { messages }.into()
+        Self { messages, groups }.into()
     }
 }
 
@@ -47,7 +59,7 @@ use std::rc::Rc;
 
 #[styled_component(App)]
 pub fn app() -> Html {
-    let chat_state = use_reducer(|| ChatState { messages: Vec::new() });
+    let chat_state = use_reducer(|| ChatState { messages: Vec::new(), groups: Vec::new() });
     let input_ref = use_node_ref();
     let group_ref = use_node_ref();
     let name_ref = use_node_ref();
@@ -65,6 +77,25 @@ pub fn app() -> Html {
                 div.set_scroll_top(div.scroll_height());
             }
             || ()
+        });
+    }
+
+    // Effect to request groups periodically
+    {
+        let tx = tx.clone();
+        let connected = *connected;
+        use_effect_with(connected, move |connected| {
+            let mut interval = None;
+            if *connected {
+                let tx = tx.clone();
+                let handle = gloo_timers::callback::Interval::new(5000, move || {
+                    if let Some(sender) = &*tx {
+                        let _ = sender.unbounded_send(FromClient::RequestGroups);
+                    }
+                });
+                interval = Some(handle);
+            }
+            move || { drop(interval); }
         });
     }
 
@@ -98,7 +129,7 @@ pub fn app() -> Html {
                     Err(e) => {
                         chat_state.dispatch(ChatAction::AddMessage(ChatMessage {
                             author: "System".to_string(),
-                            text: format!("Connection error: {:?}", e),
+                            content: MessageContent::Text(format!("Connection error: {:?}", e)),
                             is_self: false,
                             is_error: true,
                         }));
@@ -128,14 +159,25 @@ pub fn app() -> Html {
                                             chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
                                                 is_self: author.to_string() == my_name_captured,
                                                 author: author.to_string(),
-                                                text: message.to_string(),
+                                                content: MessageContent::Text(message.to_string()),
                                                 is_error: false,
                                             }));
+                                        }
+                                        FromServer::File { author, filename, data, .. } => {
+                                            chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
+                                                is_self: author.to_string() == my_name_captured,
+                                                author: author.to_string(),
+                                                content: MessageContent::File { filename, data },
+                                                is_error: false,
+                                            }));
+                                        }
+                                        FromServer::GroupsList(list) => {
+                                            chat_state_listener.dispatch(ChatAction::SetGroups(list));
                                         }
                                         FromServer::Error(err) => {
                                             chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
                                                 author: "Error".to_string(),
-                                                text: err,
+                                                content: MessageContent::Text(err),
                                                 is_self: false,
                                                 is_error: true,
                                             }));
@@ -151,7 +193,7 @@ pub fn app() -> Html {
                     tx_listener.set(None);
                     chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
                         author: "System".to_string(),
-                        text: "Connection lost.".to_string(),
+                        content: MessageContent::Text("Connection lost.".to_string()),
                         is_self: false,
                         is_error: true,
                     }));
@@ -507,20 +549,31 @@ pub fn app() -> Html {
                 </div>
 
                 <div style="flex: 1; overflow-y: auto;">
-                    <div class={classes!(contact_item_style.clone(), "active")}>
-                        <img src="https://ui-avatars.com/api/?name=Dianne+Jonson&background=random" class={avatar_style.clone()} />
-                        <div style="flex: 1;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-weight: 600; font-size: 0.9rem;">{"Dianne Jonson"}</span>
-                                <span style="font-size: 0.65rem; opacity: 0.5;">{"10:35 AM"}</span>
+                    { for chat_state.groups.iter().map(|group| {
+                        let group_clone = group.clone();
+                        let on_group_click = {
+                            let group_ref = group_ref.clone();
+                            let on_join = on_join.clone();
+                            Callback::from(move |_: MouseEvent| {
+                                if let Some(input) = group_ref.cast::<HtmlInputElement>() {
+                                    input.set_value(&group_clone);
+                                    on_join.emit(MouseEvent::new("click").unwrap());
+                                }
+                            })
+                        };
+                        html! {
+                            <div onclick={on_group_click} class={contact_item_style.clone()}>
+                                <img src={format!("https://ui-avatars.com/api/?name={}&background=random", group)} class={avatar_style.clone()} />
+                                <div style="flex: 1;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-weight: 600; font-size: 0.9rem;">{ group }</span>
+                                    </div>
+                                    <div style="font-size: 0.75rem; opacity: 0.6;">{"Public Group"}</div>
+                                </div>
                             </div>
-                            <div style="font-size: 0.75rem; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
-                                {"Hi David, have you got the..."}
-                            </div>
-                        </div>
-                    </div>
-
-                    // Connection Control (Hidden in mockup but needed for app)
+                        }
+                    })}
+                    
                     <div style="padding: 15px 20px;">
                          <div style="font-size: 0.7rem; font-weight: 700; color: #a0aec0; margin-bottom: 10px;">{"SYSTEM CONTROLS"}</div>
                          <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -546,11 +599,6 @@ pub fn app() -> Html {
                             </div>
                         </div>
                     </div>
-                    <div style="display: flex; gap: 20px; font-size: 1.1rem; opacity: 0.5;">
-                        <span style="cursor: pointer;">{"🔍"}</span>
-                        <span style="cursor: pointer;">{"♡"}</span>
-                        <span style="cursor: pointer;">{"🔔"}</span>
-                    </div>
                 </header>
 
                 <div ref={chat_box_ref} class={chat_messages_style}>
@@ -563,9 +611,13 @@ pub fn app() -> Html {
                         let is_system = m.author == "System" || m.author == "Error" || m.is_error;
                         
                         if is_system {
+                            let text = match &m.content {
+                                MessageContent::Text(t) => t.clone(),
+                                _ => "System error".to_string(),
+                            };
                             return html! {
                                 <div style="align-self: center; background: #fff5f5; color: #c53030; padding: 6px 15px; border-radius: 12px; font-size: 0.8rem; border: 1px solid #feb2b2;">
-                                    { &m.text }
+                                    { text }
                                 </div>
                             };
                         }
@@ -582,7 +634,29 @@ pub fn app() -> Html {
                                 <div style={if m.is_self { "display: flex; flex-direction: column; align-items: flex-end;" } else { "display: flex; flex-direction: column;" }}>
                                     <div style="font-size: 0.7rem; font-weight: 700; margin-bottom: 4px; opacity: 0.6;">{ &m.author }</div>
                                     <div class={bubble_class}>
-                                        { &m.text }
+                                        { match &m.content {
+                                            MessageContent::Text(text) => html! { <span>{ text }</span> },
+                                            MessageContent::File { filename, data } => {
+                                                if filename.ends_with(".png") || filename.ends_with(".jpg") || filename.ends_with(".jpeg") || filename.ends_with(".gif") {
+                                                    html! {
+                                                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                                                            <img src={data.clone()} style="max-width: 100%; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1);" />
+                                                            <span style="font-size: 0.7rem; opacity: 0.7; font-style: italic;">{ filename }</span>
+                                                        </div>
+                                                    }
+                                                } else {
+                                                    html! {
+                                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                                            <span style="font-size: 1.5rem;">{"📄"}</span>
+                                                            <div style="display: flex; flex-direction: column;">
+                                                                <span style="font-weight: 600;">{ filename }</span>
+                                                                <a href={data.clone()} download={filename.clone()} style="font-size: 0.75rem; color: inherit; text-decoration: underline;">{"Download"}</a>
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                }
+                                            }
+                                        }}
                                     </div>
                                 </div>
                             </div>
