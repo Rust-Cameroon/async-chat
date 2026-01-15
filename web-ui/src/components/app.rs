@@ -638,7 +638,7 @@ pub fn app() -> Html {
 
     // --- Styles ---
 
-    let left_w = if *left_sidebar_visible { "300px" } else { "0px" };
+    let left_w = if *left_sidebar_visible { "300px" } else { "0" };
     let right_w = if *right_sidebar_visible { "350px" } else { "0px" };
     
     // Dark mode colors
@@ -1011,7 +1011,10 @@ pub fn app() -> Html {
 
     html! {
         <div class={container_style}>
-            <aside class={sidebar_left_style.clone()} style={if *left_sidebar_visible { "width: 300px;" } else { "width: 0; padding: 0; border: none; visibility: hidden;" }}>
+            <aside class={sidebar_left_style.clone()} style={format!("width: {}; {} transition: all 0.3s ease;", 
+                if *left_sidebar_visible { "300px" } else { "0" },
+                if *left_sidebar_visible { "" } else { "padding: 0; border: none; overflow: hidden;" }
+            )}>
                 <div class={profile_small_style}>
                     <img src={format!("https://ui-avatars.com/api/?name={}&background=3498db&color=fff", *my_name_state)} class={avatar_style.clone()} alt="Me" />
                     <div style="flex: 1;">
