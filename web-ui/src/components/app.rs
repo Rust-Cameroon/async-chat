@@ -98,8 +98,8 @@ pub fn app() -> Html {
     let dark_mode = use_state(|| false);
     let is_typing = use_state(|| false);
     let notifications_enabled = use_state(|| false);
-    let show_file_confirm = use_state(|| false);
-    let _pending_file_data = use_state(|| None::<(String, String)>); // (filename, base64_data) - for future use
+    let show_emoji_picker = use_state(|| false);
+    let recording_state = use_state(|| None::<(web_sys::MediaRecorder, Vec<web_sys::Blob>, f64)>); // (recorder, chunks, start_time)
     
     // Request notification permission on mount
     {
