@@ -45,6 +45,176 @@ impl Reducible for ChatState {
 
 use std::rc::Rc;
 
+#[styled_component(App)]
+pub fn app() -> Html {
+    let chat_state = use_reducer(|| ChatState { messages: Vec::new() });
+    let input_ref = use_node_ref();
+    let group_ref = use_node_ref();
+    let name_ref = use_node_ref();
+    let chat_box_ref = use_node_ref();
+    let connected = use_state(|| false);
+    
+    let tx = use_state(|| None::<mpsc::UnboundedSender<FromClient>>);
+
+    // Auto-scroll effect
+    {
+        let chat_box_ref = chat_box_ref.clone();
+        let messages_len = chat_state.messages.len();
+        use_effect_with(messages_len, move |_| {
+            if let Some(div) = chat_box_ref.cast::<web_sys::HtmlElement>() {
+                div.set_scroll_top(div.scroll_height());
+            }
+            || ()
+        });
+    }
+
+    let on_join = {
+        let group_ref = group_ref.clone();
+        let name_ref = name_ref.clone();
+        let chat_state = chat_state.clone();
+        let connected = connected.clone();
+        let tx = tx.clone();
+        
+        Callback::from(move |_: MouseEvent| {
+            let group_name = group_ref.cast::<HtmlInputElement>().expect("input exists").value().trim().to_string();
+            let user_name = name_ref.cast::<HtmlInputElement>().expect("name exists").value().trim().to_string();
+            let my_name = if user_name.is_empty() { "Me".to_string() } else { user_name };
+
+            if group_name.is_empty() { return; }
+            
+            if let Some(sender) = &*tx {
+                let _ = sender.unbounded_send(FromClient::Join { group_name: Arc::new(group_name) });
+                return;
+            }
+
+            let chat_state = chat_state.clone();
+            let connected = connected.clone();
+            let tx_handle = tx.clone();
+            let my_name_captured = my_name.clone();
+            
+            spawn_local(async move {
+                let ws = match WebSocket::open("ws://127.0.0.1:8000") {
+                    Ok(ws) => ws,
+                    Err(e) => {
+                        chat_state.dispatch(ChatAction::AddMessage(ChatMessage {
+                            author: "System".to_string(),
+                            text: format!("Connection error: {:?}", e),
+                            is_self: false,
+                            is_error: true,
+                        }));
+                        return;
+                    }
+                };
+                
+                connected.set(true);
+                
+                let (mut sink, mut stream) = ws.split();
+                let (sender, mut receiver) = mpsc::unbounded::<FromClient>();
+                tx_handle.set(Some(sender));
+
+                let join_msg = FromClient::Join { group_name: Arc::new(group_name) };
+                let _ = sink.send(Message::Text(serde_json::to_string(&join_msg).unwrap())).await;
+
+                let chat_state_listener = chat_state.clone();
+                let connected_listener = connected.clone();
+                let tx_listener = tx_handle.clone();
+                spawn_local(async move {
+                    while let Some(msg_result) = stream.next().await {
+                        match msg_result {
+                            Ok(Message::Text(text)) => {
+                                if let Ok(server_msg) = serde_json::from_str::<FromServer>(&text) {
+                                    match server_msg {
+                                        FromServer::Message { group_name: _, author, message } => {
+                                            chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
+                                                is_self: author.to_string() == my_name_captured,
+                                                author: author.to_string(),
+                                                text: message.to_string(),
+                                                is_error: false,
+                                            }));
+                                        }
+                                        FromServer::Error(err) => {
+                                            chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
+                                                author: "Error".to_string(),
+                                                text: err,
+                                                is_self: false,
+                                                is_error: true,
+                                            }));
+                                        }
+                                    }
+                                }
+                            }
+                            Ok(_) => (),
+                            Err(_) => break,
+                        }
+                    }
+                    connected_listener.set(false);
+                    tx_listener.set(None);
+                    chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
+                        author: "System".to_string(),
+                        text: "Connection lost.".to_string(),
+                        is_self: false,
+                        is_error: true,
+                    }));
+                });
+
+                spawn_local(async move {
+                    while let Some(msg) = receiver.next().await {
+                        let json = serde_json::to_string(&msg).unwrap();
+                        if let Err(_) = sink.send(Message::Text(json)).await {
+                            break;
+                        }
+                    }
+                });
+            });
+        })
+    };
+
+    let on_send = {
+        let input_ref = input_ref.clone();
+        let group_ref = group_ref.clone();
+        let name_ref = name_ref.clone();
+        let tx = tx.clone();
+        Callback::from(move |_: MouseEvent| {
+            let input_el = input_ref.cast::<HtmlInputElement>().expect("input exists");
+            let group_el = group_ref.cast::<HtmlInputElement>().expect("group exists");
+            let name_el = name_ref.cast::<HtmlInputElement>().expect("name exists");
+            
+            let message = input_el.value();
+            let group_name = group_el.value().trim().to_string();
+            let user_name = name_el.value().trim().to_string();
+            
+            if message.is_empty() || group_name.is_empty() { return; }
+            
+            if let Some(sender) = &*tx {
+                let my_name = if user_name.is_empty() { "Me".to_string() } else { user_name };
+                web_sys::console::log_1(&format!("UI: Sending Post to '{}' as '{}': {}", group_name, my_name, message).into());
+
+                let post_msg = FromClient::Post { 
+                    group_name: Arc::new(group_name),
+                    author: Arc::new(my_name),
+                    message: Arc::new(message)
+                };
+                if let Err(e) = sender.unbounded_send(post_msg) {
+                    web_sys::console::error_1(&format!("UI Error: Failed to queue message: {:?}", e).into());
+                } else {
+                    web_sys::console::log_1(&"UI: Message queued successfully".into());
+                    input_el.set_value("");
+                }
+            } else {
+                web_sys::console::warn_1(&"UI Warning: Not connected (tx is None), cannot send".into());
+            }
+        })
+    };
+
+    let on_keypress = {
+        let on_send = on_send.clone();
+        Callback::from(move |e: KeyboardEvent| {
+            if e.key() == "Enter" {
+                on_send.emit(MouseEvent::new("click").unwrap());
+            }
+        })
+    };
+
     // --- Styles ---
 
     let container_style = css!(r#"
