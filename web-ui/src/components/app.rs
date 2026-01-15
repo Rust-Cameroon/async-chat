@@ -642,13 +642,14 @@ pub fn app() -> Html {
 
     html! {
         <div class={container_style}>
-            <aside class={sidebar_left_style}>
+            <aside class={if *left_sidebar_visible { sidebar_left_style.clone() } else { css!("display: none;") }}>
                 <div class={profile_small_style}>
-                    <img src="https://ui-avatars.com/api/?name=Ju+Nine&background=3498db&color=fff" class={avatar_style.clone()} alt="Me" />
-                    <div>
-                        <div style="font-weight: 700; font-size: 0.95rem;">{"David Peters"}</div>
-                        <div style="font-size: 0.75rem; opacity: 0.6;">{"Senior Developer"}</div>
+                    <img src={format!("https://ui-avatars.com/api/?name={}&background=3498db&color=fff", *my_name_state)} class={avatar_style.clone()} alt="Me" />
+                    <div style="flex: 1;">
+                        <div style="font-weight: 700; font-size: 0.95rem;">{ &*my_name_state }</div>
+                        <div style="font-size: 0.75rem; opacity: 0.6;">{"Self Profile"}</div>
                     </div>
+                    <span onclick={toggle_left} style="cursor: pointer; opacity: 0.5; font-size: 1.2rem;" title="Collapse Sidebar">{"⇠"}</span>
                 </div>
 
                 <div class={search_bar_container.clone()}>
@@ -684,7 +685,7 @@ pub fn app() -> Html {
                     <div style="padding: 15px 20px;">
                          <div style="font-size: 0.7rem; font-weight: 700; color: #a0aec0; margin-bottom: 10px;">{"SYSTEM CONTROLS"}</div>
                          <div style="display: flex; flex-direction: column; gap: 8px;">
-                            <input ref={name_ref} class={css!("padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.8rem; outline: none;")} placeholder="Your Name" />
+                            <input ref={name_ref} oninput={on_name_input} class={css!("padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.8rem; outline: none;")} placeholder="Your Name" />
                             <input ref={group_ref} class={css!("padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.8rem; outline: none;")} placeholder="Group to Join" />
                             <button onclick={on_join} class={css!("background: #3498db; color: white; border: none; padding: 8px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; font-weight: 600;")}>
                                 { if *connected { "SWITCH GROUP" } else { "CONNECT" } }
