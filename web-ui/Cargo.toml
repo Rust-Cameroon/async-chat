@@ -43,4 +43,12 @@ features = [
   "Location",
   "History",
   "HtmlAudioElement",
+  "MediaRecorder",
+  "MediaStream",
+  "MediaDevices",
+  "Navigator",
+  "Blob",
+  "BlobPropertyBag",
+  "FileReader",
+  "ProgressEvent",
 ]
