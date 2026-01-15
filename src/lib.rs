@@ -26,6 +26,18 @@ pub enum FromClient {
         filename: String,
         data: String, // Base64
     },
+    PostVoice {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        duration: f64, // Duration in seconds
+        data: String, // Base64 encoded audio
+    },
+    PostReaction {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        message_id: String,
+        emoji: String,
+    },
 }
 /// Messages that the server sends back to clients.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -43,6 +55,18 @@ pub enum FromServer {
         author: Arc<String>,
         filename: String,
         data: String, // Base64
+    },
+    Voice {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        duration: f64,
+        data: String, // Base64 encoded audio
+    },
+    Reaction {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        message_id: String,
+        emoji: String,
     },
     GroupsList(Vec<String>),
 }
