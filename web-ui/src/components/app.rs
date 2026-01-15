@@ -565,6 +565,19 @@ pub fn app() -> Html {
         })
     };
 
+    let on_keypress = {
+        let on_send = on_send.clone();
+        let is_typing = is_typing.clone();
+        Callback::from(move |e: KeyboardEvent| {
+            if e.key() == "Enter" {
+                on_send.emit(MouseEvent::new("click").unwrap());
+                is_typing.set(false);
+            } else {
+                is_typing.set(true);
+            }
+        })
+    };
+
     let on_input_change = {
         let is_typing = is_typing.clone();
         Callback::from(move |e: InputEvent| {
