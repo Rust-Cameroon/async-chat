@@ -95,6 +95,38 @@ pub fn app() -> Html {
     let my_name_state = use_state(|| "Me".to_string());
     let dark_mode = use_state(|| false);
     let is_typing = use_state(|| false);
+    let notifications_enabled = use_state(|| false);
+    
+    // Request notification permission on mount
+    {
+        let notifications_enabled = notifications_enabled.clone();
+        use_effect_with((), move |_| {
+            spawn_local(async move {
+                if let Some(window) = web_sys::window() {
+                    if let Ok(notification) = js_sys::Reflect::get(&window, &"Notification".into()) {
+                        if !notification.is_undefined() {
+                            let permission = js_sys::Reflect::get(&notification, &"permission".into())
+                                .ok()
+                                .and_then(|p| p.as_string())
+                                .unwrap_or_default();
+                            
+                            if permission == "granted" {
+                                notifications_enabled.set(true);
+                            } else if permission == "default" {
+                                // Request permission
+                                if let Ok(request_fn) = js_sys::Reflect::get(&notification, &"requestPermission".into()) {
+                                    if let Ok(request) = request_fn.dyn_ref::<js_sys::Function>() {
+                                        let _ = request.call0(&notification);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            || ()
+        });
+    }
 
     let on_name_input = {
         let my_name_state = my_name_state.clone();
@@ -195,14 +227,46 @@ pub fn app() -> Html {
                                 if let Ok(server_msg) = serde_json::from_str::<FromServer>(&text) {
                                     match server_msg {
                                         FromServer::Message { group_name: _, author, message } => {
+                                            let is_self = author.to_string() == my_name_captured;
                                             chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
-                                                is_self: author.to_string() == my_name_captured,
+                                                is_self,
                                                 author: author.to_string(),
                                                 content: MessageContent::Text(message.to_string()),
                                                 is_error: false,
                                                 timestamp: chrono::Utc::now(),
                                                 reactions: Vec::new(),
                                             }));
+                                            
+                                            // Play notification sound and show notification for other's messages
+                                            if !is_self {
+                                                // Play sound
+                                                if let Some(window) = web_sys::window() {
+                                                    if let Ok(audio) = web_sys::HtmlAudioElement::new() {
+                                                        let _ = audio.set_src("data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZUQ0PVanm8LJeGAg+ltryy3k0Bip+zPLaizsKGGS57OShVhMJT6Lh8bllHAU2kdb0zHo1Bit+zPDbjDwLFmm57+idUQwPWKzn7LFjGgk9l9vyyXo1Byt9zPDdjTwLFmm37+meUgwPWKzm7LFjGgk+mNryx3w2CCt8y+/dkD0MFmq37uidUw0PWavl7LNkGQk9mNvxx342CCx8yu/ckT4MFmq47+idUw0PWqzm7LBiGgk9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4M");
+                                                        let _ = audio.play();
+                                                    }
+                                                    
+                                                    // Show desktop notification
+                                                    if let Ok(notification) = js_sys::Reflect::get(&window, &"Notification".into()) {
+                                                        if !notification.is_undefined() {
+                                                            let permission = js_sys::Reflect::get(&notification, &"permission".into())
+                                                                .ok()
+                                                                .and_then(|p| p.as_string())
+                                                                .unwrap_or_default();
+                                                            
+                                                            if permission == "granted" {
+                                                                let opts = js_sys::Object::new();
+                                                                let _ = js_sys::Reflect::set(&opts, &"body".into(), &format!("{}", message).into());
+                                                                let _ = js_sys::Reflect::set(&opts, &"icon".into(), &"🔔".into());
+                                                                
+                                                                if let Ok(constructor) = notification.dyn_ref::<js_sys::Function>() {
+                                                                    let _ = constructor.construct2(&format!("New message from {}", author).into(), &opts);
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                         FromServer::File { author, filename, data, .. } => {
                                             chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
@@ -431,12 +495,16 @@ pub fn app() -> Html {
         color: ${text};
         overflow: hidden;
         transition: all 0.3s ease;
+        position: relative;
 
         @media (max-width: 1200px) {
             grid-template-columns: ${left} 1fr 0px;
         }
         @media (max-width: 800px) {
             grid-template-columns: 0px 1fr 0px;
+        }
+        @media (max-width: 600px) {
+            font-size: 14px;
         }
     "#, left=left_w, right=right_w, bg=bg_color, text=text_color);
 
@@ -527,6 +595,10 @@ pub fn app() -> Html {
         padding: 15px 25px;
         border-bottom: 1px solid ${border};
         transition: all 0.3s ease;
+        
+        @media (max-width: 600px) {
+            padding: 12px 15px;
+        }
     "#, border=border_color);
 
     let chat_messages_style = css!(r#"
@@ -539,12 +611,23 @@ pub fn app() -> Html {
         background-color: ${bg};
         transition: all 0.3s ease;
         scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+        
+        @media (max-width: 600px) {
+            padding: 15px;
+            gap: 15px;
+        }
     "#, bg=bg_color);
 
     let chat_footer_style = css!(r#"
         padding: 15px 25px 25px;
         background-color: ${footer_bg};
         transition: all 0.3s ease;
+        position: relative;
+        
+        @media (max-width: 600px) {
+            padding: 10px 15px 15px;
+        }
     "#, footer_bg=if *dark_mode { "#2d2d2d" } else { "#e3f2fd" });
 
     let input_wrapper_style = css!(r#"
@@ -564,6 +647,15 @@ pub fn app() -> Html {
             font-size: 0.95rem;
             background: transparent;
             color: ${text};
+        }
+        
+        @media (max-width: 600px) {
+            padding: 5px 8px 5px 15px;
+            gap: 10px;
+            input {
+                font-size: 0.9rem;
+                padding: 8px 0;
+            }
         }
     "#, input_bg=input_bg, text=text_color);
 
@@ -592,6 +684,12 @@ pub fn app() -> Html {
         transition: transform 0.2s;
         &:hover { transform: scale(1.05); }
         &:active { transform: scale(0.95); }
+        
+        @media (max-width: 600px) {
+            width: 40px;
+            height: 40px;
+            font-size: 0.9rem;
+        }
     "#);
 
     // Sidebar Right Styles
@@ -687,6 +785,7 @@ pub fn app() -> Html {
         line-height: 1.5;
         position: relative;
         animation: slideIn 0.3s ease;
+        word-wrap: break-word;
         
         @keyframes slideIn {
             from {
@@ -697,6 +796,12 @@ pub fn app() -> Html {
                 opacity: 1;
                 transform: translateY(0);
             }
+        }
+        
+        @media (max-width: 600px) {
+            max-width: 85%;
+            padding: 10px 14px;
+            font-size: 0.9rem;
         }
     "#);
 
