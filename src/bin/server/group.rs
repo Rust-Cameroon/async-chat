@@ -7,15 +7,22 @@ use tokio::sync::broadcast;
 
 /// A packet sent over the group's broadcast channel.
 #[derive(Clone, Debug)]
-pub struct ChatMessage {
-    pub author: Arc<String>,
-    pub message: Arc<String>,
+pub enum BroadcastPacket {
+    Message {
+        author: Arc<String>,
+        message: Arc<String>,
+    },
+    File {
+        author: Arc<String>,
+        filename: String,
+        data: String,
+    },
 }
 
 /// A named group that broadcasts messages to all connected subscribers.
 pub struct Group {
     name: Arc<String>,
-    sender: broadcast::Sender<ChatMessage>,
+    sender: broadcast::Sender<BroadcastPacket>,
 }
 
 impl Group {
@@ -34,14 +41,19 @@ impl Group {
     /// Posts a message to the group, broadcasting it to all subscribers.
     pub fn post(&self, author: Arc<String>, message: Arc<String>) {
         eprintln!("Server: Group '{}' broadcasting message from '{}'", self.name, author);
-        let _ = self.sender.send(ChatMessage { author, message });
+        let _ = self.sender.send(BroadcastPacket::Message { author, message });
+    }
+
+    pub fn post_file(&self, author: Arc<String>, filename: String, data: String) {
+        eprintln!("Server: Group '{}' broadcasting file '{}' from '{}'", self.name, filename, author);
+        let _ = self.sender.send(BroadcastPacket::File { author, filename, data });
     }
 }
 
 /// Handles the lifecycle of a subscriber: receiving messages and sending them over their connection.
 async fn handle_subscriber(
     group_name: Arc<String>,
-    mut receiver: broadcast::Receiver<ChatMessage>,
+    mut receiver: broadcast::Receiver<BroadcastPacket>,
     outbound: Arc<Outbound>,
 ) {
     use async_chat::FromServer;
@@ -49,11 +61,18 @@ async fn handle_subscriber(
     loop {
         match receiver.recv().await {
             Ok(packet) => {
-                eprintln!("Server: Subscriber in '{}' received message from '{}'", group_name, packet.author);
-                let server_message = FromServer::Message {
-                    group_name: group_name.clone(),
-                    author: packet.author,
-                    message: packet.message,
+                let server_message = match packet {
+                    BroadcastPacket::Message { author, message } => FromServer::Message {
+                        group_name: group_name.clone(),
+                        author,
+                        message,
+                    },
+                    BroadcastPacket::File { author, filename, data } => FromServer::File {
+                        group_name: group_name.clone(),
+                        author,
+                        filename,
+                        data,
+                    },
                 };
 
                 // Send the message to the client
@@ -65,6 +84,7 @@ async fn handle_subscriber(
                     break; 
                 }
             }
+            Err(broadcast::error::RecvError::Lagged(skipped)) => {
 // ... (rest remains same)
             Err(broadcast::error::RecvError::Lagged(skipped)) => {
                 // Client was too slow, some messages were skipped
