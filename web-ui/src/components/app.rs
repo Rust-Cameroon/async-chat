@@ -695,7 +695,6 @@ pub fn app() -> Html {
                 </div>
             </aside>
 
-            <!-- Main Chat Area -->
             <main class={chat_main_style}>
                 <header class={chat_header_style}>
                     <div style="display: flex; align-items: center; gap: 15px;">
