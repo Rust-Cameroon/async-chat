@@ -17,6 +17,16 @@ pub enum BroadcastPacket {
         filename: String,
         data: String,
     },
+    Voice {
+        author: Arc<String>,
+        duration: f64,
+        data: String,
+    },
+    Reaction {
+        author: Arc<String>,
+        message_id: String,
+        emoji: String,
+    },
 }
 
 /// A named group that broadcasts messages to all connected subscribers.
@@ -48,6 +58,16 @@ impl Group {
         eprintln!("Server: Group '{}' broadcasting file '{}' from '{}'", self.name, filename, author);
         let _ = self.sender.send(BroadcastPacket::File { author, filename, data });
     }
+
+    pub fn post_voice(&self, author: Arc<String>, duration: f64, data: String) {
+        eprintln!("Server: Group '{}' broadcasting voice message ({:.1}s) from '{}'", self.name, duration, author);
+        let _ = self.sender.send(BroadcastPacket::Voice { author, duration, data });
+    }
+
+    pub fn post_reaction(&self, author: Arc<String>, message_id: String, emoji: String) {
+        eprintln!("Server: Group '{}' broadcasting reaction '{}' from '{}' to message '{}'", self.name, emoji, author, message_id);
+        let _ = self.sender.send(BroadcastPacket::Reaction { author, message_id, emoji });
+    }
 }
 
 /// Handles the lifecycle of a subscriber: receiving messages and sending them over their connection.
@@ -72,6 +92,18 @@ async fn handle_subscriber(
                         author,
                         filename,
                         data,
+                    },
+                    BroadcastPacket::Voice { author, duration, data } => FromServer::Voice {
+                        group_name: group_name.clone(),
+                        author,
+                        duration,
+                        data,
+                    },
+                    BroadcastPacket::Reaction { author, message_id, emoji } => FromServer::Reaction {
+                        group_name: group_name.clone(),
+                        author,
+                        message_id,
+                        emoji,
                     },
                 };
 
