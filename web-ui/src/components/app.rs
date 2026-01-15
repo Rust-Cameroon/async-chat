@@ -248,6 +248,80 @@ pub fn app() -> Html {
         })
     };
 
+    let show_emojis = use_state(|| false);
+    let file_input_ref = use_node_ref();
+
+    let on_emoji_click = {
+        let show_emojis = show_emojis.clone();
+        Callback::from(move |_: MouseEvent| show_emojis.set(!*show_emojis))
+    };
+
+    let on_select_emoji = {
+        let input_ref = input_ref.clone();
+        let show_emojis = show_emojis.clone();
+        Callback::from(move |emoji: &'static str| {
+            if let Some(input) = input_ref.cast::<HtmlInputElement>() {
+                let curr = input.value();
+                input.set_value(&format!("{}{}", curr, emoji));
+                show_emojis.set(false);
+            }
+        })
+    };
+
+    let on_file_click = {
+        let file_input_ref = file_input_ref.clone();
+        Callback::from(move |_: MouseEvent| {
+            if let Some(input) = file_input_ref.cast::<HtmlInputElement>() {
+                input.click();
+            }
+        })
+    };
+
+    let on_file_change = {
+        let file_input_ref = file_input_ref.clone();
+        let group_ref = group_ref.clone();
+        let name_ref = name_ref.clone();
+        let tx = tx.clone();
+        Callback::from(move |_: Event| {
+            let file_input = file_input_ref.cast::<HtmlInputElement>().expect("file input exists");
+            let group_el = group_ref.cast::<HtmlInputElement>().expect("group exists");
+            let name_el = name_ref.cast::<HtmlInputElement>().expect("name exists");
+            
+            let group_name = group_el.value().trim().to_string();
+            let user_name = name_el.value().trim().to_string();
+            
+            if group_name.is_empty() { return; }
+
+            if let Some(files) = file_input.files() {
+                if let Some(file) = files.get(0) {
+                    let filename = file.name();
+                    let tx = tx.clone();
+                    let my_name = if user_name.is_empty() { "Me".to_string() } else { user_name };
+                    
+                    let reader = web_sys::FileReader::new().unwrap();
+                    let reader_clone = reader.clone();
+                    let on_load = Closure::wrap(Box::new(move |_e: web_sys::Event| {
+                        let result = reader_clone.result().unwrap();
+                        let data_url = result.as_string().unwrap();
+                        
+                        if let Some(sender) = &*tx {
+                            let _ = sender.unbounded_send(FromClient::PostFile {
+                                group_name: Arc::new(group_name.clone()),
+                                author: Arc::new(my_name.clone()),
+                                filename: filename.clone(),
+                                data: data_url,
+                            });
+                        }
+                    }) as Box<dyn FnMut(web_sys::Event)>);
+                    
+                    reader.set_onload(Some(on_load.as_ref().unchecked_ref()));
+                    reader.read_as_data_url(&file).unwrap();
+                    on_load.forget();
+                }
+            }
+        })
+    };
+
     let on_keypress = {
         let on_send = on_send.clone();
         Callback::from(move |e: KeyboardEvent| {
