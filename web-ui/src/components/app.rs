@@ -265,7 +265,7 @@ pub fn app() -> Html {
     let search_bar_style = css!(r#"
         margin: 0 20px 20px;
         position: relative;
-        input {
+        & input {
             width: 100%;
             padding: 10px 15px 10px 40px;
             border-radius: 20px;
@@ -418,12 +418,12 @@ pub fn app() -> Html {
 
     let attachments_section = css!(r#"
         margin-top: 30px;
-        .title_row { 
+        & .title_row { 
             display: flex; 
             justify-content: space-between; 
             align-items: center; 
             margin-bottom: 15px; 
-            h3 { font-size: 1rem; margin: 0; }
+            & h3 { font-size: 1rem; margin: 0; }
         }
     "#);
 
@@ -492,7 +492,6 @@ pub fn app() -> Html {
 
     html! {
         <div class={container_style}>
-            <!-- Sidebar Left -->
             <aside class={sidebar_left_style}>
                 <div class={profile_small_style}>
                     <img src="https://ui-avatars.com/api/?name=Ju+Nine&background=3498db&color=fff" class={avatar_style.clone()} alt="Me" />
@@ -507,7 +506,7 @@ pub fn app() -> Html {
                 </div>
 
                 <div style="flex: 1; overflow-y: auto;">
-                    // Mock Group / Contact List
+                    {/* Mock Group / Contact List */}
                     <div class={classes!(contact_item_style.clone(), "active")}>
                         <img src="https://ui-avatars.com/api/?name=Dianne+Jonson&background=random" class={avatar_style.clone()} />
                         <div style="flex: 1;">
@@ -535,7 +534,6 @@ pub fn app() -> Html {
                 </div>
             </aside>
 
-            <!-- Main Chat Area -->
             <main class={chat_main_style}>
                 <header class={chat_header_style}>
                     <div style="display: flex; align-items: center; gap: 15px;">
@@ -606,7 +604,6 @@ pub fn app() -> Html {
                 </footer>
             </main>
 
-            <!-- Sidebar Right -->
             <aside class={sidebar_right_style}>
                 <div class={search_bar_style.clone()} style="margin: 0 0 20px 0;">
                     <input placeholder="Search Here..." />
