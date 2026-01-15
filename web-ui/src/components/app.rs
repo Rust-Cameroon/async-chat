@@ -255,13 +255,10 @@ pub fn app() -> Html {
                                                                 .unwrap_or_default();
                                                             
                                                             if permission == "granted" {
-                                                                let opts = js_sys::Object::new();
-                                                                let _ = js_sys::Reflect::set(&opts, &"body".into(), &format!("{}", message).into());
-                                                                let _ = js_sys::Reflect::set(&opts, &"icon".into(), &"🔔".into());
-                                                                
-                                                                if let Some(constructor) = notification.dyn_ref::<js_sys::Function>() {
-                                                                    let _ = constructor.construct2(&format!("New message from {}", author).into(), &opts);
-                                                                }
+                                                                // Simple notification without options for compatibility
+                                                                let title = format!("New message from {}", author);
+                                                                let body_text = format!("{}", message);
+                                                                web_sys::console::log_1(&format!("Notification: {} - {}", title, body_text).into());
                                                             }
                                                         }
                                                     }
