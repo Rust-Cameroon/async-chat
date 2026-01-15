@@ -45,340 +45,454 @@ impl Reducible for ChatState {
 
 use std::rc::Rc;
 
-#[styled_component(App)]
-pub fn app() -> Html {
-    let chat_state = use_reducer(|| ChatState { messages: Vec::new() });
-    let input_ref = use_node_ref();
-    let group_ref = use_node_ref();
-    let name_ref = use_node_ref();
-    let chat_box_ref = use_node_ref();
-    let connected = use_state(|| false);
-    
-    let tx = use_state(|| None::<mpsc::UnboundedSender<FromClient>>);
-
-    // Auto-scroll effect
-    {
-        let chat_box_ref = chat_box_ref.clone();
-        let messages_len = chat_state.messages.len();
-        use_effect_with(messages_len, move |_| {
-            if let Some(div) = chat_box_ref.cast::<web_sys::HtmlElement>() {
-                div.set_scroll_top(div.scroll_height());
-            }
-            || ()
-        });
-    }
-
-    let on_join = {
-        let group_ref = group_ref.clone();
-        let name_ref = name_ref.clone();
-        let chat_state = chat_state.clone();
-        let connected = connected.clone();
-        let tx = tx.clone();
-        
-        Callback::from(move |_: MouseEvent| {
-            let group_name = group_ref.cast::<HtmlInputElement>().expect("input exists").value().trim().to_string();
-            let user_name = name_ref.cast::<HtmlInputElement>().expect("name exists").value().trim().to_string();
-            let my_name = if user_name.is_empty() { "Me".to_string() } else { user_name };
-
-            if group_name.is_empty() { return; }
-            
-            if let Some(sender) = &*tx {
-                let _ = sender.unbounded_send(FromClient::Join { group_name: Arc::new(group_name) });
-                return;
-            }
-
-            let chat_state = chat_state.clone();
-            let connected = connected.clone();
-            let tx_handle = tx.clone();
-            let my_name_captured = my_name.clone();
-            
-            spawn_local(async move {
-                let ws = match WebSocket::open("ws://127.0.0.1:8000") {
-                    Ok(ws) => ws,
-                    Err(e) => {
-                        chat_state.dispatch(ChatAction::AddMessage(ChatMessage {
-                            author: "System".to_string(),
-                            text: format!("Connection error: {:?}", e),
-                            is_self: false,
-                            is_error: true,
-                        }));
-                        return;
-                    }
-                };
-                
-                connected.set(true);
-                
-                let (mut sink, mut stream) = ws.split();
-                let (sender, mut receiver) = mpsc::unbounded::<FromClient>();
-                tx_handle.set(Some(sender));
-
-                let join_msg = FromClient::Join { group_name: Arc::new(group_name) };
-                let _ = sink.send(Message::Text(serde_json::to_string(&join_msg).unwrap())).await;
-
-                let chat_state_listener = chat_state.clone();
-                let connected_listener = connected.clone();
-                let tx_listener = tx_handle.clone();
-                spawn_local(async move {
-                    while let Some(msg_result) = stream.next().await {
-                        match msg_result {
-                            Ok(Message::Text(text)) => {
-                                if let Ok(server_msg) = serde_json::from_str::<FromServer>(&text) {
-                                    match server_msg {
-                                        FromServer::Message { group_name: _, author, message } => {
-                                            chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
-                                                is_self: author.to_string() == my_name_captured,
-                                                author: author.to_string(),
-                                                text: message.to_string(),
-                                                is_error: false,
-                                            }));
-                                        }
-                                        FromServer::Error(err) => {
-                                            chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
-                                                author: "Error".to_string(),
-                                                text: err,
-                                                is_self: false,
-                                                is_error: true,
-                                            }));
-                                        }
-                                    }
-                                }
-                            }
-                            Ok(_) => (),
-                            Err(_) => break,
-                        }
-                    }
-                    connected_listener.set(false);
-                    tx_listener.set(None);
-                    chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
-                        author: "System".to_string(),
-                        text: "Connection lost.".to_string(),
-                        is_self: false,
-                        is_error: true,
-                    }));
-                });
-
-                spawn_local(async move {
-                    while let Some(msg) = receiver.next().await {
-                        let json = serde_json::to_string(&msg).unwrap();
-                        if let Err(_) = sink.send(Message::Text(json)).await {
-                            break;
-                        }
-                    }
-                });
-            });
-        })
-    };
-
-    let on_send = {
-        let input_ref = input_ref.clone();
-        let group_ref = group_ref.clone();
-        let name_ref = name_ref.clone();
-        let tx = tx.clone();
-        Callback::from(move |_: MouseEvent| {
-            let input_el = input_ref.cast::<HtmlInputElement>().expect("input exists");
-            let group_el = group_ref.cast::<HtmlInputElement>().expect("group exists");
-            let name_el = name_ref.cast::<HtmlInputElement>().expect("name exists");
-            
-            let message = input_el.value();
-            let group_name = group_el.value().trim().to_string();
-            let user_name = name_el.value().trim().to_string();
-            
-            if message.is_empty() || group_name.is_empty() { return; }
-            
-            if let Some(sender) = &*tx {
-                let my_name = if user_name.is_empty() { "Me".to_string() } else { user_name };
-                web_sys::console::log_1(&format!("UI: Sending Post to '{}' as '{}': {}", group_name, my_name, message).into());
-
-                let post_msg = FromClient::Post { 
-                    group_name: Arc::new(group_name),
-                    author: Arc::new(my_name),
-                    message: Arc::new(message)
-                };
-                if let Err(e) = sender.unbounded_send(post_msg) {
-                    web_sys::console::error_1(&format!("UI Error: Failed to queue message: {:?}", e).into());
-                } else {
-                    web_sys::console::log_1(&"UI: Message queued successfully".into());
-                    input_el.set_value("");
-                }
-            } else {
-                web_sys::console::warn_1(&"UI Warning: Not connected (tx is None), cannot send".into());
-            }
-        })
-    };
-
-    let on_keypress = {
-        let on_send = on_send.clone();
-        Callback::from(move |e: KeyboardEvent| {
-            if e.key() == "Enter" {
-                on_send.emit(MouseEvent::new("click").unwrap());
-            }
-        })
-    };
+    // --- Styles ---
 
     let container_style = css!(r#"
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: 300px 1fr 350px;
         height: 100vh;
-        max-width: 800px;
-        margin: 0 auto;
-        font-family: 'Inter', system-ui, -apple-system, sans-serif;
-        background-color: #f8f9fa;
-        color: #212529;
+        width: 100vw;
+        font-family: 'Inter', sans-serif;
+        background-color: white;
+        color: #1a1a1a;
+        overflow: hidden;
+
+        @media (max-width: 1200px) {
+            grid-template-columns: 280px 1fr 0px;
+        }
+        @media (max-width: 800px) {
+            grid-template-columns: 0px 1fr 0px;
+        }
     "#);
 
-    let header_style = css!(r#"
-        padding: 20px;
-        background: linear-gradient(135deg, #e67e22, #d35400);
-        color: white;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    // Sidebar Left Styles
+    let sidebar_left_style = css!(r#"
+        background-color: #f7f9fa;
+        border-right: 1px solid #e1e4e8;
+        display: flex;
+        flex-direction: column;
+        padding: 20px 0;
+        overflow: hidden;
+    "#);
+
+    let profile_small_style = css!(r#"
+        display: flex;
+        align-items: center;
+        padding: 0 20px;
+        gap: 12px;
+        margin-bottom: 24px;
+        position: relative;
+    "#);
+
+    let avatar_style = css!(r#"
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background-color: #ddd;
+        object-fit: cover;
+    "#);
+
+    let search_bar_style = css!(r#"
+        margin: 0 20px 20px;
+        position: relative;
+        input {
+            width: 100%;
+            padding: 10px 15px 10px 40px;
+            border-radius: 20px;
+            border: 1px solid #e1e4e8;
+            background-color: white;
+            font-size: 0.9rem;
+            outline: none;
+            &:focus { border-color: #3498db; }
+        }
+        &::before {
+            content: "🔍";
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.8rem;
+            opacity: 0.5;
+        }
+    "#);
+
+    let contact_item_style = css!(r#"
+        display: flex;
+        align-items: center;
+        padding: 12px 20px;
+        gap: 15px;
+        cursor: pointer;
+        transition: background 0.2s;
+        &:hover { background-color: #edf2f7; }
+        &.active { background-color: #e2e8f0; }
+    "#);
+
+    // Main Chat Styles
+    let chat_main_style = css!(r#"
+        display: flex;
+        flex-direction: column;
+        background-color: white;
+        overflow: hidden;
+    "#);
+
+    let chat_header_style = css!(r#"
         display: flex;
         justify-content: space-between;
         align-items: center;
+        padding: 15px 25px;
+        border-bottom: 1px solid #f0f0f0;
     "#);
 
-    let chat_area_style = css!(r#"
+    let chat_messages_style = css!(r#"
         flex: 1;
         overflow-y: auto;
-        padding: 20px;
+        padding: 20px 30px;
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 20px;
+        background-color: white;
     "#);
 
-    let input_area_style = css!(r#"
+    let chat_footer_style = css!(r#"
+        padding: 15px 25px 25px;
+        background-color: #e3f2fd;
+    "#);
+
+    let input_wrapper_style = css!(r#"
+        background-color: white;
+        border-radius: 30px;
+        display: flex;
+        align-items: center;
+        padding: 5px 10px 5px 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        gap: 15px;
+        input {
+            flex: 1;
+            border: none;
+            outline: none;
+            padding: 10px 0;
+            font-size: 0.95rem;
+        }
+    "#);
+
+    let icon_btn_style = css!(r#"
+        background: none;
+        border: none;
+        font-size: 1.2rem;
+        cursor: pointer;
+        opacity: 0.6;
+        transition: opacity 0.2s;
+        &:hover { opacity: 1; }
+    "#);
+
+    let send_circle_btn = css!(r#"
+        width: 45px;
+        height: 45px;
+        background-color: #0084ff;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 4px 10px rgba(0, 132, 255, 0.3);
+        transition: transform 0.2s;
+        &:hover { transform: scale(1.05); }
+        &:active { transform: scale(0.95); }
+    "#);
+
+    // Sidebar Right Styles
+    let sidebar_right_style = css!(r#"
+        background-color: #f7f9fa;
+        border-left: 1px solid #e1e4e8;
+        display: flex;
+        flex-direction: column;
         padding: 20px;
-        background: white;
-        border-top: 1px solid #dee2e6;
-        display: flex;
-        gap: 10px;
-        align-items: flex-end;
+        overflow-y: auto;
+        @media (max-width: 1200px) { display: none; }
     "#);
 
-    let controls_style = css!(r#"
-        padding: 10px 20px;
-        background: #fff;
-        border-bottom: 1px solid #dee2e6;
+    let profile_large_style = css!(r#"
         display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 30px 0;
+        text-align: center;
+        h2 { margin: 15px 0 5px; font-size: 1.2rem; }
+        span { opacity: 0.6; font-size: 0.85rem; }
+    "#);
+
+    let action_grid_style = css!(r#"
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        margin: 20px 0;
+    "#);
+
+    let action_card_style = css!(r#"
+        background: white;
+        padding: 15px;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid #edf2f7;
+        cursor: pointer;
+        transition: box-shadow 0.2s;
+        &:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .icon { font-size: 1.5rem; color: #0084ff; }
+        .label { font-size: 0.8rem; font-weight: 500; }
+    "#);
+
+    let attachments_section = css!(r#"
+        margin-top: 30px;
+        .title_row { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 15px; 
+            h3 { font-size: 1rem; margin: 0; }
+        }
+    "#);
+
+    let attachment_grid = css!(r#"
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
         gap: 10px;
-        flex-wrap: wrap;
+    "#);
+
+    let attachment_item = css!(r#"
+        aspect-ratio: 1;
+        background: white;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        border: 1px solid #edf2f7;
+        font-size: 0.6rem;
+        font-weight: 700;
+        color: #0084ff;
+        .icon { font-size: 1.2rem; }
+        &.pdf { background-color: #eef2ff; color: #4f46e5; }
+        &.video { background-color: #fff1f2; color: #e11d48; }
+        &.audio { background-color: #f0fdf4; color: #16a34a; }
+        &.image { background-color: #fefce8; color: #ca8a04; }
     "#);
 
     let bubble_base = css!(r#"
         max-width: 70%;
-        padding: 10px 16px;
-        border-radius: 18px;
+        padding: 12px 18px;
+        border-radius: 20px;
         font-size: 0.95rem;
-        line-height: 1.4;
+        line-height: 1.5;
         position: relative;
-        animation: fadeIn 0.3s ease-out;
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
     "#);
 
     let my_bubble = css!(r#"
         align-self: flex-end;
-        background-color: #2ecc71;
+        background-color: #0084ff;
         color: white;
         border-bottom-right-radius: 4px;
     "#);
 
     let other_bubble = css!(r#"
         align-self: flex-start;
-        background-color: #e4e6eb;
-        color: black;
+        background-color: #f1f3f4;
+        color: #1a1a1a;
         border-bottom-left-radius: 4px;
     "#);
 
-    let error_bubble = css!(r#"
-        align-self: center;
-        background-color: #fce4e4;
-        color: #c0392b;
-        font-size: 0.85rem;
-        border: 1px solid #f5c6cb;
-    "#);
-
-    let input_style = css!(r#"
-        padding: 12px 16px;
-        border: 1px solid #ced4da;
-        border-radius: 24px;
-        outline: none;
-        flex: 1;
-        transition: border-color 0.2s;
-        &:focus { border-color: #e67e22; }
-    "#);
-
-    let btn_style = css!(r#"
-        padding: 10px 24px;
-        border-radius: 24px;
-        border: none;
-        font-weight: 600;
-        cursor: pointer;
-        transition: transform 0.1s, filter 0.2s;
-        &:active { transform: scale(0.96); }
-        &:hover { filter: brightness(1.1); }
-    "#);
-
-    let join_btn_style = css!(r#"
-        background: #3498db;
-        color: white;
-    "#);
-
-    let send_btn_style = css!(r#"
-        background: #2ecc71;
-        color: white;
-        font-size: 1.2rem;
-        padding: 10px;
+    let connection_pill = css!(r#"
+        font-size: 0.75rem;
+        background: #edf2f7;
+        color: #4a5568;
+        padding: 4px 12px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .online { background-color: #2ecc71; }
+        .offline { background-color: #e74c3c; }
     "#);
 
     html! {
         <div class={container_style}>
-            <header class={header_style}>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="font-size: 1.5rem;">{"🔥"}</span>
-                    <h1 style="margin: 0; font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px;">{"Async Chat"}</h1>
+            <!-- Sidebar Left -->
+            <aside class={sidebar_left_style}>
+                <div class={profile_small_style}>
+                    <img src="https://ui-avatars.com/api/?name=Ju+Nine&background=3498db&color=fff" class={avatar_style.clone()} alt="Me" />
+                    <div>
+                        <div style="font-weight: 700; font-size: 0.95rem;">{"David Peters"}</div>
+                        <div style="font-size: 0.75rem; opacity: 0.6;">{"Senior Developer"}</div>
+                    </div>
                 </div>
-                <div style="font-size: 0.8rem; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 12px;">
-                    { if *connected { "Online" } else { "Offline" } }
+
+                <div class={search_bar_style.clone()}>
+                    <input placeholder="Search Here..." />
                 </div>
-            </header>
 
-            <div class={controls_style}>
-                <input ref={name_ref} class={input_style.clone()} placeholder="Your Name" style="flex: 0 1 150px;" />
-                <input ref={group_ref} class={input_style.clone()} placeholder="Group Name" style="flex: 1;" />
-                <button onclick={on_join} class={classes!(btn_style.clone(), join_btn_style)}>
-                    { if *connected { "Switch" } else { "Join" } }
-                </button>
-            </div>
-
-            <main ref={chat_box_ref} class={chat_area_style}>
-                { for chat_state.messages.iter().map(|m| {
-                    let class = if m.is_error {
-                        classes!(bubble_base.clone(), error_bubble.clone())
-                    } else if m.is_self {
-                        classes!(bubble_base.clone(), my_bubble.clone())
-                    } else {
-                        classes!(bubble_base.clone(), other_bubble.clone())
-                    };
-                    html! {
-                        <div {class}>
-                            if !m.is_error {
-                                <div style="font-size: 0.7rem; font-weight: 700; margin-bottom: 2px; opacity: 0.8;">{ &m.author }</div>
-                            }
-                            { &m.text }
+                <div style="flex: 1; overflow-y: auto;">
+                    // Mock Group / Contact List
+                    <div class={classes!(contact_item_style.clone(), "active")}>
+                        <img src="https://ui-avatars.com/api/?name=Dianne+Jonson&background=random" class={avatar_style.clone()} />
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-weight: 600; font-size: 0.9rem;">{"Dianne Jonson"}</span>
+                                <span style="font-size: 0.65rem; opacity: 0.5;">{"10:35 AM"}</span>
+                            </div>
+                            <div style="font-size: 0.75rem; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
+                                {"Hi David, have you got the..."}
+                            </div>
                         </div>
-                    }
-                })}
+                    </div>
+
+                    // Connection Control (Hidden in mockup but needed for app)
+                    <div style="padding: 15px 20px;">
+                         <div style="font-size: 0.7rem; font-weight: 700; color: #a0aec0; margin-bottom: 10px;">{"SYSTEM CONTROLS"}</div>
+                         <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <input ref={name_ref} class={css!("padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.8rem; outline: none;")} placeholder="Your Name" />
+                            <input ref={group_ref} class={css!("padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.8rem; outline: none;")} placeholder="Group to Join" />
+                            <button onclick={on_join} class={css!("background: #3498db; color: white; border: none; padding: 8px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; font-weight: 600;")}>
+                                { if *connected { "SWITCH GROUP" } else { "CONNECT" } }
+                            </button>
+                         </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Chat Area -->
+            <main class={chat_main_style}>
+                <header class={chat_header_style}>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <img src="https://ui-avatars.com/api/?name=Group&background=2ecc71&color=fff" class={avatar_style.clone()} style="width: 40px; height: 40px;" />
+                        <div>
+                            <div style="font-weight: 700; font-size: 1rem;">{"General Chat"}</div>
+                            <div class={connection_pill}>
+                                <div class={classes!("dot", if *connected { "online" } else { "offline" })}></div>
+                                { if *connected { "Live Connection" } else { "Disconnected" } }
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 20px; font-size: 1.1rem; opacity: 0.5;">
+                        <span style="cursor: pointer;">{"🔍"}</span>
+                        <span style="cursor: pointer;">{"♡"}</span>
+                        <span style="cursor: pointer;">{"🔔"}</span>
+                    </div>
+                </header>
+
+                <div ref={chat_box_ref} class={chat_messages_style}>
+                    <div style="text-align: center; margin: 10px 0; position: relative;">
+                        <hr style="border: none; border-top: 1px solid #f0f0f0; position: absolute; top: 50%; width: 100%; z-index: 1;" />
+                        <span style="background: white; padding: 0 15px; font-size: 0.75rem; color: #a0aec0; font-weight: 600; position: relative; z-index: 2;">{"Async History"}</span>
+                    </div>
+
+                    { for chat_state.messages.iter().map(|m| {
+                        let is_system = m.author == "System" || m.author == "Error" || m.is_error;
+                        
+                        if is_system {
+                            return html! {
+                                <div style="align-self: center; background: #fff5f5; color: #c53030; padding: 6px 15px; border-radius: 12px; font-size: 0.8rem; border: 1px solid #feb2b2;">
+                                    { &m.text }
+                                </div>
+                            };
+                        }
+
+                        let bubble_class = if m.is_self {
+                            classes!(bubble_base.clone(), my_bubble.clone())
+                        } else {
+                            classes!(bubble_base.clone(), other_bubble.clone())
+                        };
+
+                        html! {
+                            <div style={if m.is_self { "display: flex; flex-direction: row-reverse; gap: 12px;" } else { "display: flex; gap: 12px;" }}>
+                                <img src={format!("https://ui-avatars.com/api/?name={}&background=random", m.author)} class={avatar_style.clone()} style="width: 32px; height: 32px;" />
+                                <div style={if m.is_self { "display: flex; flex-direction: column; align-items: flex-end;" } else { "display: flex; flex-direction: column;" }}>
+                                    <div style="font-size: 0.7rem; font-weight: 700; margin-bottom: 4px; opacity: 0.6;">{ &m.author }</div>
+                                    <div class={bubble_class}>
+                                        { &m.text }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    })}
+                </div>
+
+                <footer class={chat_footer_style}>
+                    <div class={input_wrapper_style}>
+                        <button class={icon_btn_style.clone()}>{"🎙️"}</button>
+                        <input ref={input_ref} onkeypress={on_keypress} placeholder="Write Something..." />
+                        <div style="display: flex; gap: 10px; padding-right: 5px; align-items: center;">
+                            <button class={icon_btn_style.clone()}>{"📎"}</button>
+                            <button class={icon_btn_style.clone()}>{"📷"}</button>
+                            <button class={icon_btn_style.clone()}>{"😊"}</button>
+                            <button onclick={on_send} class={send_circle_btn}>{"✈"}</button>
+                        </div>
+                    </div>
+                </footer>
             </main>
 
-            <footer class={input_area_style}>
-                <input ref={input_ref} onkeypress={on_keypress} class={input_style} placeholder="Type a message..." />
-                <button onclick={on_send} class={classes!(btn_style.clone(), send_btn_style)}>
-                    {"↑"}
-                </button>
-            </footer>
+            <!-- Sidebar Right -->
+            <aside class={sidebar_right_style}>
+                <div class={search_bar_style.clone()} style="margin: 0 0 20px 0;">
+                    <input placeholder="Search Here..." />
+                </div>
+
+                <div class={profile_large_style}>
+                    <img src="https://ui-avatars.com/api/?name=Dianne+Jonson&background=random" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover;" />
+                    <h2>{"Dianne Jonson"}</h2>
+                    <span>{"Junior Developer"}</span>
+                </div>
+
+                <div class={action_grid_style}>
+                    <div class={action_card_style.clone()}>
+                        <span class="icon">{"💬"}</span>
+                        <span class="label">{"Chat"}</span>
+                    </div>
+                    <div class={action_card_style.clone()}>
+                        <span class="icon" style="color: #4a5568;">{"📹"}</span>
+                        <span class="label">{"Video Call"}</span>
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; padding: 5px;">
+                        <span>{"👥"}</span> {"View Friends"}
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; padding: 5px;">
+                        <span>{"♡"}</span> {"Add to Favorites"}
+                    </div>
+                </div>
+
+                <div class={attachments_section}>
+                    <div class="title_row">
+                        <h3>{"Attachments"}</h3>
+                        <a href="#" style="font-size: 0.75rem; color: #0084ff; text-decoration: none; font-weight: 600;">{"View All"}</a>
+                    </div>
+                    <div class={attachment_grid}>
+                        <div class={classes!(attachment_item.clone(), "pdf")}>
+                            <span class="icon">{"📄"}</span>
+                            <span>{"PDF"}</span>
+                        </div>
+                        <div class={classes!(attachment_item.clone(), "video")}>
+                            <span class="icon">{"🎬"}</span>
+                            <span>{"VIDEO"}</span>
+                        </div>
+                        <div class={classes!(attachment_item.clone(), "audio")}>
+                            <span class="icon">{"🎵"}</span>
+                            <span>{"MP3"}</span>
+                        </div>
+                        <div class={classes!(attachment_item.clone(), "image")}>
+                            <span class="icon">{"🖼️"}</span>
+                            <span>{"IMAGE"}</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
         </div>
     }
 }
