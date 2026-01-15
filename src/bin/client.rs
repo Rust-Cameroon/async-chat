@@ -153,6 +153,12 @@ async fn handle_replies(from_server: net::TcpStream) -> anyhow::Result<()> {
             FromServer::File { author, filename, .. } => {
                 println!("{}: posted file {}: (File data not shown in CLI)", author, filename);
             }
+            FromServer::Voice { author, duration, .. } => {
+                println!("{}: posted voice message ({:.1}s) (Audio data not shown in CLI)", author, duration);
+            }
+            FromServer::Reaction { author, emoji, message_id, .. } => {
+                println!("{}: reacted with {} to message {}", author, emoji, message_id);
+            }
             FromServer::GroupsList(list) => {
                 println!("Active groups: {}", list.join(", "));
             }
