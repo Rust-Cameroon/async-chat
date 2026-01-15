@@ -115,7 +115,7 @@ pub fn app() -> Html {
                             } else if permission == "default" {
                                 // Request permission
                                 if let Ok(request_fn) = js_sys::Reflect::get(&notification, &"requestPermission".into()) {
-                                    if let Ok(request) = request_fn.dyn_ref::<js_sys::Function>() {
+                                    if let Some(request) = request_fn.dyn_ref::<js_sys::Function>() {
                                         let _ = request.call0(&notification);
                                     }
                                 }
@@ -259,7 +259,7 @@ pub fn app() -> Html {
                                                                 let _ = js_sys::Reflect::set(&opts, &"body".into(), &format!("{}", message).into());
                                                                 let _ = js_sys::Reflect::set(&opts, &"icon".into(), &"🔔".into());
                                                                 
-                                                                if let Ok(constructor) = notification.dyn_ref::<js_sys::Function>() {
+                                                                if let Some(constructor) = notification.dyn_ref::<js_sys::Function>() {
                                                                     let _ = constructor.construct2(&format!("New message from {}", author).into(), &opts);
                                                                 }
                                                             }
