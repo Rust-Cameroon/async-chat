@@ -739,16 +739,59 @@ pub fn app() -> Html {
                 </div>
 
                 <footer class={chat_footer_style}>
+                    <input 
+                        type="file" 
+                        ref={file_input_ref} 
+                        style="display: none;" 
+                        onchange={on_file_change} 
+                    />
+
+                    { if *show_emojis {
+                        html! {
+                            <div class={css!(r#"
+                                position: absolute;
+                                bottom: 80px;
+                                left: 20px;
+                                background: white;
+                                border: 1px solid #e1e4e8;
+                                border-radius: 12px;
+                                padding: 10px;
+                                display: grid;
+                                grid-template-columns: repeat(6, 1fr);
+                                gap: 10px;
+                                box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+                                z-index: 100;
+                            "#)}>
+                                { for ["😀", "😂", "🥰", "👍", "🔥", "🚀", "✨", "�", "🤔", "👋", "❤️", "✔️"].iter().map(|&e| {
+                                    let on_click = {
+                                        let on_select_emoji = on_select_emoji.clone();
+                                        Callback::from(move |_: MouseEvent| on_select_emoji.emit(e))
+                                    };
+                                    html! { <span onclick={on_click} style="cursor: pointer; font-size: 1.5rem;">{ e }</span> }
+                                })}
+                            </div>
+                        }
+                    } else { html! {} }}
+
                     <div class={input_wrapper_style}>
-                        <button class={icon_btn_style.clone()}>{"🎙️"}</button>
-                        <input ref={input_ref} onkeypress={on_keypress} placeholder="Write Something..." />
-                        <div style="display: flex; gap: 10px; padding-right: 5px; align-items: center;">
-                            <button class={icon_btn_style.clone()}>{"📎"}</button>
-                            <button class={icon_btn_style.clone()}>{"📷"}</button>
-                            <button class={icon_btn_style.clone()}>{"😊"}</button>
-                            <button onclick={on_send} class={send_circle_btn}>{"✈"}</button>
+                        <div style="display: flex; gap: 12px; padding: 0 10px; border-right: 1px solid #f0f0f0;">
+                            <span onclick={on_file_click.clone()} class={icon_btn_style.clone()} title="Attach File">{"📎"}</span>
+                            <span onclick={on_emoji_click} class={icon_btn_style.clone()} title="Insert Emoji">{"�"}</span>
+                        </div>
+                        <input 
+                            ref={input_ref}
+                            class={css!("flex: 1; border: none; padding: 10px 15px; outline: none; font-size: 0.95rem;")} 
+                            placeholder="Type progress here..." 
+                            onkeypress={on_keypress}
+                        />
+                        <div style="display: flex; gap: 12px; padding: 0 10px; border-left: 1px solid #f0f0f0;">
+                            <span onclick={on_file_click} class={icon_btn_style.clone()}>{"📷"}</span>
+                            <span class={icon_btn_style.clone()}>{"🎤"}</span>
                         </div>
                     </div>
+                    <button onclick={on_send} class={send_circle_btn_style}>
+                        {"➔"}
+                    </button>
                 </footer>
             </main>
 
@@ -758,9 +801,9 @@ pub fn app() -> Html {
                 </div>
 
                 <div class={profile_large_style}>
-                    <img src="https://ui-avatars.com/api/?name=Dianne+Jonson&background=random" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover;" />
-                    <h2>{"Dianne Jonson"}</h2>
-                    <span>{"Junior Developer"}</span>
+                    <img src={format!("https://ui-avatars.com/api/?name={}&background=3498db&color=fff", chat_state.messages.last().map(|m| m.author.as_str()).unwrap_or("User"))} class={avatar_style.clone()} style="width: 100px; height: 100px; margin-bottom: 20px;" />
+                    <h2 style="margin: 0; font-size: 1.25rem;">{ chat_state.messages.last().map(|m| m.author.as_str()).unwrap_or("Async User") }</h2>
+                    <div style="opacity: 0.6; font-size: 0.85rem; margin-top: 5px;">{"Active Member"}</div>
                 </div>
 
                 <div class={action_grid_style}>
@@ -768,9 +811,9 @@ pub fn app() -> Html {
                         <span class="icon">{"💬"}</span>
                         <span class="label">{"Chat"}</span>
                     </div>
-                    <div class={action_card_style.clone()}>
-                        <span class="icon" style="color: #4a5568;">{"📹"}</span>
-                        <span class="label">{"Video Call"}</span>
+                    <div onclick={on_file_click.clone()} class={action_card_style.clone()}>
+                        <span class="icon" style="color: #4a5568;">{"�"}</span>
+                        <span class="label">{"Send File"}</span>
                     </div>
                 </div>
 
