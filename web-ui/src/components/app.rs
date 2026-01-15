@@ -649,7 +649,7 @@ pub fn app() -> Html {
                         <div style="font-weight: 700; font-size: 0.95rem;">{ &*my_name_state }</div>
                         <div style="font-size: 0.75rem; opacity: 0.6;">{"Self Profile"}</div>
                     </div>
-                    <span onclick={toggle_left} style="cursor: pointer; opacity: 0.5; font-size: 1.2rem;" title="Collapse Sidebar">{"⇠"}</span>
+                    <span onclick={toggle_left.clone()} style="cursor: pointer; opacity: 0.5; font-size: 1.2rem;" title="Collapse Sidebar">{"⇠"}</span>
                 </div>
 
                 <div class={search_bar_container.clone()}>
@@ -711,7 +711,7 @@ pub fn app() -> Html {
                         </div>
                     </div>
                     { if !*right_sidebar_visible {
-                        html! { <span onclick={toggle_right} style="cursor: pointer; font-size: 1.2rem; opacity: 0.5;" title="Show Info">{"⇠"}</span> }
+                        html! { <span onclick={toggle_right.clone()} style="cursor: pointer; font-size: 1.2rem; opacity: 0.5;" title="Show Info">{"⇠"}</span> }
                     } else { html! {} }}
                 </header>
 
@@ -837,7 +837,7 @@ pub fn app() -> Html {
             </main>
 
             <aside class={if *right_sidebar_visible { sidebar_right_style.clone() } else { css!("display: none;") }}>
-                <div class={title_row_style} style="padding: 0 10px;">
+                <div class={title_row_style.clone()} style="padding: 0 10px;">
                     <span onclick={toggle_right} style="cursor: pointer; opacity: 0.5; font-size: 1.2rem;" title="Collapse Panel">{"⇢"}</span>
                     <div style="font-weight: 700; font-size: 0.8rem; color: #a0aec0;">{"ROOM INFO"}</div>
                     <div style="width: 20px;"></div>
