@@ -55,7 +55,7 @@ pub async fn serve(socket: WebSocketStream<TcpStream>, groups: Arc<GroupTable>) 
                                 message,
                             } => {
                                 eprintln!("Server: Received Post to group '{}' from '{}': {}", group_name, author, message);
-                               match groups.get(&*group_name) {
+                                match groups.get(&*group_name) {
                                     Some(group) => {
                                         group.post(author, message);
                                         Ok(())
@@ -64,6 +64,20 @@ pub async fn serve(socket: WebSocketStream<TcpStream>, groups: Arc<GroupTable>) 
                                         eprintln!("Server Error: Group '{}' not found", group_name);
                                         Err(format!("Group '{}' does not exist", group_name))
                                     }
+                                }
+                            }
+                            FromClient::RequestGroups => {
+                                let list = groups.list_groups();
+                                let _ = outbound.send(FromServer::GroupsList(list)).await;
+                                Ok(())
+                            }
+                            FromClient::PostFile { group_name, author, filename, data } => {
+                                match groups.get(&*group_name) {
+                                    Some(group) => {
+                                        group.post_file(author, filename, data);
+                                        Ok(())
+                                    }
+                                    None => Err(format!("Group '{}' does not exist", group_name)),
                                 }
                             }
                         };
