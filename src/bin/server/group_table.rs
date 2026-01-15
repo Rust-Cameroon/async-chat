@@ -28,6 +28,10 @@ impl GroupTable {
             .or_insert_with(|| Arc::new(Group::new(name)))
             .clone()
     }
+
+    pub fn list_groups(&self) -> Vec<String> {
+        self.0.lock().unwrap().keys().map(|k| k.to_string()).collect()
+    }
 }
 
 // Implement Default to satisfy Clippy's `new_without_default` lint
