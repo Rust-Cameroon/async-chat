@@ -695,9 +695,13 @@ pub fn app() -> Html {
                 </div>
             </aside>
 
+            <!-- Main Chat Area -->
             <main class={chat_main_style}>
                 <header class={chat_header_style}>
                     <div style="display: flex; align-items: center; gap: 15px;">
+                        { if !*left_sidebar_visible {
+                            html! { <span onclick={toggle_left} style="cursor: pointer; font-size: 1.2rem; margin-right: 10px;" title="Show Sidebar">{"⇢"}</span> }
+                        } else { html! {} }}
                         <img src="https://ui-avatars.com/api/?name=Group&background=2ecc71&color=fff" class={avatar_style.clone()} style="width: 40px; height: 40px;" />
                         <div>
                             <div style="font-weight: 700; font-size: 1rem;">{"General Chat"}</div>
@@ -707,6 +711,9 @@ pub fn app() -> Html {
                             </div>
                         </div>
                     </div>
+                    { if !*right_sidebar_visible {
+                        html! { <span onclick={toggle_right} style="cursor: pointer; font-size: 1.2rem; opacity: 0.5;" title="Show Info">{"⇠"}</span> }
+                    } else { html! {} }}
                 </header>
 
                 <div ref={chat_box_ref} class={chat_messages_style}>
@@ -796,7 +803,7 @@ pub fn app() -> Html {
                                 box-shadow: 0 5px 15px rgba(0,0,0,0.1);
                                 z-index: 100;
                             "#)}>
-                                { for ["😀", "😂", "🥰", "👍", "🔥", "🚀", "✨", "�", "🤔", "👋", "❤️", "✔️"].iter().map(|&e| {
+                                { for ["😀", "😂", "🥰", "👍", "🔥", "🚀", "✨", "🎉", "🤔", "👋", "❤️", "✔️"].iter().map(|&e| {
                                     let on_click = {
                                         let on_select_emoji = on_select_emoji.clone();
                                         Callback::from(move |_: MouseEvent| on_select_emoji.emit(e))
@@ -810,17 +817,18 @@ pub fn app() -> Html {
                     <div class={input_wrapper_style}>
                         <div style="display: flex; gap: 12px; padding: 0 10px; border-right: 1px solid #f0f0f0;">
                             <span onclick={on_file_click.clone()} class={icon_btn_style.clone()} title="Attach File">{"📎"}</span>
-                            <span onclick={on_emoji_click} class={icon_btn_style.clone()} title="Insert Emoji">{"�"}</span>
+                            <span onclick={on_emoji_click} class={icon_btn_style.clone()} title="Insert Emoji">{"😊"}</span>
                         </div>
                         <input 
                             ref={input_ref}
                             class={css!("flex: 1; border: none; padding: 10px 15px; outline: none; font-size: 0.95rem;")} 
-                            placeholder="Type progress here..." 
+                            placeholder={if *is_recording { "Recording voice..." } else { "Type progress here..." }}
                             onkeypress={on_keypress}
+                            disabled={*is_recording}
                         />
                         <div style="display: flex; gap: 12px; padding: 0 10px; border-left: 1px solid #f0f0f0;">
                             <span onclick={on_file_click.clone()} class={icon_btn_style.clone()}>{"📷"}</span>
-                            <span class={icon_btn_style.clone()}>{"🎤"}</span>
+                            <span onclick={toggle_recording} class={classes!(icon_btn_style.clone(), if *is_recording { css!("color: #e74c3c; animation: pulse 1.5s infinite;") } else { css!("") })}>{"🎤"}</span>
                         </div>
                     </div>
                     <button onclick={on_send} class={send_circle_btn}>
@@ -829,9 +837,11 @@ pub fn app() -> Html {
                 </footer>
             </main>
 
-            <aside class={sidebar_right_style}>
-                <div class={search_bar_container} style="margin: 0 0 20px 0;">
-                    <input class={search_input_style} placeholder="Search Here..." />
+            <aside class={if *right_sidebar_visible { sidebar_right_style.clone() } else { css!("display: none;") }}>
+                <div class={title_row_style} style="padding: 0 10px;">
+                    <span onclick={toggle_right} style="cursor: pointer; opacity: 0.5; font-size: 1.2rem;" title="Collapse Panel">{"⇢"}</span>
+                    <div style="font-weight: 700; font-size: 0.8rem; color: #a0aec0;">{"ROOM INFO"}</div>
+                    <div style="width: 20px;"></div>
                 </div>
 
                 <div class={profile_large_style}>
@@ -846,7 +856,7 @@ pub fn app() -> Html {
                         <span class="label">{"Chat"}</span>
                     </div>
                     <div onclick={on_file_click.clone()} class={action_card_style.clone()}>
-                        <span class="icon" style="color: #4a5568;">{"�"}</span>
+                        <span class="icon" style="color: #4a5568;">{"📁"}</span>
                         <span class="label">{"Send File"}</span>
                     </div>
                 </div>
@@ -862,28 +872,35 @@ pub fn app() -> Html {
 
                 <div class={attachments_section}>
                     <div class={title_row_style}>
-                        <h3 style="font-size: 1rem; margin: 0;">{"Attachments"}</h3>
-                        <a href="#" style="font-size: 0.75rem; color: #0084ff; text-decoration: none; font-weight: 600;">{"View All"}</a>
+                        <div style="font-weight: 700; font-size: 0.8rem; color: #a0aec0;">{"ATTACHMENTS"}</div>
+                        <div style="font-size: 0.7rem; color: #3182ce; cursor: pointer;">{"View All"}</div>
                     </div>
                     <div class={attachment_grid}>
-                        <div class={classes!(attachment_item.clone(), "pdf")}>
-                            <span class="icon">{"📄"}</span>
-                            <span>{"PDF"}</span>
-                        </div>
-                        <div class={classes!(attachment_item.clone(), "video")}>
-                            <span class="icon">{"🎬"}</span>
-                            <span>{"VIDEO"}</span>
-                        </div>
-                        <div class={classes!(attachment_item.clone(), "audio")}>
-                            <span class="icon">{"🎵"}</span>
-                            <span>{"MP3"}</span>
-                        </div>
-                        <div class={classes!(attachment_item.clone(), "image")}>
-                            <span class="icon">{"🖼️"}</span>
-                            <span>{"IMAGE"}</span>
-                        </div>
+                        { for chat_state.messages.iter().filter_map(|m| {
+                            if let MessageContent::File { filename, .. } = &m.content {
+                                let (icon, class) = if filename.to_lowercase().ends_with(".pdf") { ("📄", "pdf") }
+                                               else if filename.to_lowercase().ends_with(".mp3") || filename.to_lowercase().ends_with(".wav") { ("♫", "audio") }
+                                               else if filename.to_lowercase().ends_with(".png") || filename.to_lowercase().ends_with(".jpg") || filename.to_lowercase().ends_with(".jpeg") { ("🖼", "image") }
+                                               else { ("📁", "") };
+                                Some(html! {
+                                    <div class={classes!(attachment_item.clone(), class)}>
+                                        <span class="icon">{ icon }</span>
+                                    </div>
+                                })
+                            } else { None }
+                        }).take(8) }
                     </div>
                 </div>
+
+                <style>
+                    {r#"
+                        @keyframes pulse {
+                            0% { transform: scale(1); }
+                            50% { transform: scale(1.2); }
+                            100% { transform: scale(1); }
+                        }
+                    "#}
+                </style>
             </aside>
         </div>
     }
