@@ -468,7 +468,134 @@ pub fn app() -> Html {
     };
     let toggle_recording = {
         let is_recording = is_recording.clone();
-        Callback::from(move |_: MouseEvent| is_recording.set(!*is_recording))
+        let recording_state = recording_state.clone();
+        let tx = tx.clone();
+        let group_ref = group_ref.clone();
+        let my_name_state = my_name_state.clone();
+        
+        Callback::from(move |_: MouseEvent| {
+            let is_recording = is_recording.clone();
+            let recording_state = recording_state.clone();
+            let tx = tx.clone();
+            let group_ref = group_ref.clone();
+            let my_name_state = my_name_state.clone();
+            
+            spawn_local(async move {
+                if *is_recording {
+                    // Stop recording
+                    if let Some((recorder, chunks, start_time)) = (*recording_state).clone() {
+                        // Stop the recorder
+                        let _ = recorder.stop();
+                        
+                        // Wait a bit for data to be available
+                        gloo_timers::future::TimeoutFuture::new(500).await;
+                        
+                        // Calculate duration
+                        let duration = if let Some(window) = web_sys::window() {
+                            let perf = window.performance().unwrap();
+                            (perf.now() - start_time) / 1000.0
+                        } else {
+                            1.0
+                        };
+                        
+                        // Create blob from chunks
+                        if !chunks.is_empty() {
+                            let array = js_sys::Array::new();
+                            for chunk in chunks {
+                                array.push(&chunk);
+                            }
+                            
+                            if let Ok(blob) = web_sys::Blob::new_with_blob_sequence(&array) {
+                                // Convert to base64
+                                if let Ok(reader) = web_sys::FileReader::new() {
+                                    let reader_clone = reader.clone();
+                                    let tx = tx.clone();
+                                    let group_ref = group_ref.clone();
+                                    let my_name_state = my_name_state.clone();
+                                    
+                                    let onload = Closure::wrap(Box::new(move |_: web_sys::ProgressEvent| {
+                                        if let Ok(result) = reader_clone.result() {
+                                            if let Some(data_url) = result.as_string() {
+                                                // Send voice message
+                                                if let Some(sender) = &*tx {
+                                                    if let Some(group_el) = group_ref.cast::<HtmlInputElement>() {
+                                                        let group_name = group_el.value().trim().to_string();
+                                                        let _ = sender.unbounded_send(FromClient::PostVoice {
+                                                            group_name: Arc::new(group_name),
+                                                            author: Arc::new((*my_name_state).clone()),
+                                                            duration,
+                                                            data: data_url,
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }) as Box<dyn FnMut(_)>);
+                                    
+                                    reader.set_onload(Some(onload.as_ref().unchecked_ref()));
+                                    onload.forget();
+                                    
+                                    let _ = reader.read_as_data_url(&blob);
+                                }
+                            }
+                        }
+                        
+                        recording_state.set(None);
+                    }
+                    is_recording.set(false);
+                } else {
+                    // Start recording
+                    if let Some(window) = web_sys::window() {
+                        if let Some(navigator) = window.navigator().media_devices().ok() {
+                            let mut constraints = web_sys::MediaStreamConstraints::new();
+                            constraints.audio(&true.into());
+                            
+                            if let Ok(promise) = navigator.get_user_media_with_constraints(&constraints) {
+                                let future = wasm_bindgen_futures::JsFuture::from(promise);
+                                
+                                match future.await {
+                                    Ok(stream) => {
+                                        let media_stream: web_sys::MediaStream = stream.into();
+                                        
+                                        if let Ok(recorder) = web_sys::MediaRecorder::new(&media_stream) {
+                                            let chunks: Vec<web_sys::Blob> = Vec::new();
+                                            let recorder_clone = recorder.clone();
+                                            let recording_state = recording_state.clone();
+                                            
+                                            // Setup ondataavailable
+                                            let chunks_rc = Rc::new(RefCell::new(chunks));
+                                            let chunks_for_closure = chunks_rc.clone();
+                                            
+                                            let ondataavailable = Closure::wrap(Box::new(move |e: web_sys::BlobEvent| {
+                                                if let Some(blob) = e.data() {
+                                                    chunks_for_closure.borrow_mut().push(blob);
+                                                }
+                                            }) as Box<dyn FnMut(_)>);
+                                            
+                                            recorder.set_ondataavailable(Some(ondataavailable.as_ref().unchecked_ref()));
+                                            ondataavailable.forget();
+                                            
+                                            // Get start time
+                                            let start_time = window.performance().unwrap().now();
+                                            
+                                            // Start recording
+                                            let _ = recorder.start();
+                                            
+                                            // Store state (we'll update with chunks later)
+                                            recording_state.set(Some((recorder_clone, Vec::new(), start_time)));
+                                            is_recording.set(true);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        web_sys::console::log_1(&format!("Error accessing microphone: {:?}", e).into());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        })
     };
 
     let on_keypress = {
