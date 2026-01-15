@@ -262,19 +262,9 @@ pub fn app() -> Html {
         object-fit: cover;
     "#);
 
-    let search_bar_style = css!(r#"
+    let search_bar_container = css!(r#"
         margin: 0 20px 20px;
         position: relative;
-        & input {
-            width: 100%;
-            padding: 10px 15px 10px 40px;
-            border-radius: 20px;
-            border: 1px solid #e1e4e8;
-            background-color: white;
-            font-size: 0.9rem;
-            outline: none;
-            &:focus { border-color: #3498db; }
-        }
         &::before {
             content: "🔍";
             position: absolute;
@@ -284,6 +274,17 @@ pub fn app() -> Html {
             font-size: 0.8rem;
             opacity: 0.5;
         }
+    "#);
+
+    let search_input_style = css!(r#"
+        width: 100%;
+        padding: 10px 15px 10px 40px;
+        border-radius: 20px;
+        border: 1px solid #e1e4e8;
+        background-color: white;
+        font-size: 0.9rem;
+        outline: none;
+        &:focus { border-color: #3498db; }
     "#);
 
     let contact_item_style = css!(r#"
@@ -418,13 +419,13 @@ pub fn app() -> Html {
 
     let attachments_section = css!(r#"
         margin-top: 30px;
-        & .title_row { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            margin-bottom: 15px; 
-            & h3 { font-size: 1rem; margin: 0; }
-        }
+    "#);
+
+    let title_row_style = css!(r#"
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        margin-bottom: 15px; 
     "#);
 
     let attachment_grid = css!(r#"
@@ -501,12 +502,11 @@ pub fn app() -> Html {
                     </div>
                 </div>
 
-                <div class={search_bar_style.clone()}>
-                    <input placeholder="Search Here..." />
+                <div class={search_bar_container.clone()}>
+                    <input class={search_input_style.clone()} placeholder="Search Here..." />
                 </div>
 
                 <div style="flex: 1; overflow-y: auto;">
-                    {/* Mock Group / Contact List */}
                     <div class={classes!(contact_item_style.clone(), "active")}>
                         <img src="https://ui-avatars.com/api/?name=Dianne+Jonson&background=random" class={avatar_style.clone()} />
                         <div style="flex: 1;">
@@ -605,8 +605,8 @@ pub fn app() -> Html {
             </main>
 
             <aside class={sidebar_right_style}>
-                <div class={search_bar_style.clone()} style="margin: 0 0 20px 0;">
-                    <input placeholder="Search Here..." />
+                <div class={search_bar_container} style="margin: 0 0 20px 0;">
+                    <input class={search_input_style} placeholder="Search Here..." />
                 </div>
 
                 <div class={profile_large_style}>
@@ -636,8 +636,8 @@ pub fn app() -> Html {
                 </div>
 
                 <div class={attachments_section}>
-                    <div class="title_row">
-                        <h3>{"Attachments"}</h3>
+                    <div class={title_row_style}>
+                        <h3 style="font-size: 1rem; margin: 0;">{"Attachments"}</h3>
                         <a href="#" style="font-size: 0.75rem; color: #0084ff; text-decoration: none; font-weight: 600;">{"View All"}</a>
                     </div>
                     <div class={attachment_grid}>
