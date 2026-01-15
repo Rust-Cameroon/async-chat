@@ -475,6 +475,92 @@ pub fn app() -> Html {
         let right_sidebar_visible = right_sidebar_visible.clone();
         Callback::from(move |_: MouseEvent| right_sidebar_visible.set(!*right_sidebar_visible))
     };
+
+    let toggle_recording = {
+        let is_recording = is_recording.clone();
+        let tx = tx.clone();
+        let group_ref = group_ref.clone();
+        let my_name_state = my_name_state.clone();
+        let chat_state = chat_state.clone();
+        
+        Callback::from(move |_: MouseEvent| {
+            let is_recording = is_recording.clone();
+            let tx = tx.clone();
+            let group_ref = group_ref.clone();
+            let my_name_state = my_name_state.clone();
+            let chat_state = chat_state.clone();
+            
+            let window = web_sys::window().unwrap();
+            
+            if *is_recording {
+                let _ = js_sys::eval("if(window._stopRecording) window._stopRecording();");
+                is_recording.set(false);
+            } else {
+                is_recording.set(true);
+                
+                let tx_clone = tx.clone();
+                let group_ref_clone = group_ref.clone();
+                let my_name_clone = my_name_state.clone();
+                let is_recording_clone = is_recording.clone();
+                let chat_state_clone = chat_state.clone();
+                
+                let on_done = Closure::wrap(Box::new(move |data_url: String, duration: f64| {
+                    if !data_url.is_empty() {
+                        if let Some(sender) = &*tx_clone {
+                            if let Some(group_el) = group_ref_clone.cast::<HtmlInputElement>() {
+                                let group_name = group_el.value().trim().to_string();
+                                if !group_name.is_empty() {
+                                    let _ = sender.unbounded_send(FromClient::PostVoice {
+                                        group_name: Arc::new(group_name),
+                                        author: Arc::new((*my_name_clone).clone()),
+                                        duration,
+                                        data: data_url.clone(),
+                                    });
+                                    chat_state_clone.dispatch(ChatAction::AddMessage(ChatMessage {
+                                        id: uuid::Uuid::new_v4().to_string(),
+                                        author: (*my_name_clone).clone(),
+                                        content: MessageContent::Voice { duration, data: data_url },
+                                        is_self: true,
+                                        is_error: false,
+                                        timestamp: chrono::Utc::now(),
+                                        reactions: Vec::new(),
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                    is_recording_clone.set(false);
+                }) as Box<dyn FnMut(String, f64)>);
+                
+                let _ = js_sys::Reflect::set(&window, &"_onRecordingDone".into(), on_done.as_ref());
+                on_done.forget();
+                
+                let _ = js_sys::eval(r#"
+                    (async function() {
+                        try {
+                            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                            const rec = new MediaRecorder(stream);
+                            const chunks = [];
+                            const start = Date.now();
+                            rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+                            rec.onstop = () => {
+                                const dur = (Date.now() - start) / 1000;
+                                const blob = new Blob(chunks, { type: 'audio/webm' });
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                    if (window._onRecordingDone) window._onRecordingDone(reader.result || '', dur);
+                                    stream.getTracks().forEach(t => t.stop());
+                                };
+                                reader.readAsDataURL(blob);
+                            };
+                            window._stopRecording = () => { if (rec.state !== 'inactive') rec.stop(); };
+                            rec.start();
+                        } catch(e) {
+                            alert('Microphone access denied. Please allow permissions.');
+                            if (window._onRecordingDone) window._onRecordingDone('', 0);
+                        }
+                    })();
+                "#);
             }
         })
     };
