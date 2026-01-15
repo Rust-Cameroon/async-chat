@@ -85,8 +85,6 @@ async fn handle_subscriber(
                 }
             }
             Err(broadcast::error::RecvError::Lagged(skipped)) => {
-// ... (rest remains same)
-            Err(broadcast::error::RecvError::Lagged(skipped)) => {
                 // Client was too slow, some messages were skipped
                 eprintln!(
                     "Client in group '{}' lagged behind, skipped {} messages",
