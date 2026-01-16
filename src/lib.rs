@@ -38,6 +38,30 @@ pub enum FromClient {
         message_id: String,
         emoji: String,
     },
+    /// Reply to a specific message
+    PostReply {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        message: Arc<String>,
+        reply_to_id: String,
+        reply_to_author: String,
+        reply_to_preview: String,
+    },
+    /// Set user's online status
+    SetPresence {
+        username: Arc<String>,
+        status: UserStatus,
+    },
+    /// Request list of online users in a group
+    RequestOnlineUsers { group_name: Arc<String> },
+}
+
+/// User online status
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum UserStatus {
+    Online,
+    Away,
+    Offline,
 }
 /// Messages that the server sends back to clients.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -68,7 +92,33 @@ pub enum FromServer {
         message_id: String,
         emoji: String,
     },
+    /// A reply to a specific message
+    Reply {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        message: Arc<String>,
+        reply_to_id: String,
+        reply_to_author: String,
+        reply_to_preview: String,
+    },
     GroupsList(Vec<String>),
+    /// List of online users in a group
+    OnlineUsers {
+        group_name: Arc<String>,
+        users: Vec<OnlineUser>,
+    },
+    /// User presence update
+    PresenceUpdate {
+        username: Arc<String>,
+        status: UserStatus,
+    },
+}
+
+/// Online user info
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct OnlineUser {
+    pub username: String,
+    pub status: UserStatus,
 }
 
 #[cfg(test)]
