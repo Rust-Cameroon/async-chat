@@ -198,7 +198,7 @@ pub fn app() -> Html {
             let my_name_captured = my_name.clone();
             
             spawn_local(async move {
-                let ws = match WebSocket::open("ws://100.106.16.106:8000") {
+                let ws = match WebSocket::open("ws://127.0.0.1:8000") {
                     Ok(ws) => ws,
                     Err(e) => {
                         chat_state.dispatch(ChatAction::AddMessage(ChatMessage {
