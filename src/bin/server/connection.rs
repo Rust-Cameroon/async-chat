@@ -1,10 +1,13 @@
 use crate::group_table::GroupTable;
 use async_chat::{FromClient, FromServer};
-use async_std::net::TcpStream;
-use async_std::sync::Arc;
-use async_std::sync::Mutex;
-use async_tungstenite::tungstenite::Message;
-use async_tungstenite::WebSocketStream;
+use async_std::{
+    net::TcpStream,
+    sync::{Arc, Mutex},
+};
+use async_tungstenite::{
+    tungstenite::Message,
+    WebSocketStream,
+};
 use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
 
@@ -54,15 +57,15 @@ pub async fn serve(socket: WebSocketStream<TcpStream>, groups: Arc<GroupTable>) 
                                 author,
                                 message,
                             } => {
-                                eprintln!("Server: Received Post to group '{}' from '{}': {}", group_name, author, message);
+                                eprintln!("Server: Received Post to group '{group_name}' from '{author}': {message}");
                                 match groups.get(&*group_name) {
                                     Some(group) => {
                                         group.post(author, message);
                                         Ok(())
                                     }
                                     None => {
-                                        eprintln!("Server Error: Group '{}' not found", group_name);
-                                        Err(format!("Group '{}' does not exist", group_name))
+                                        eprintln!("Server Error: Group '{group_name}' not found");
+                                        Err(format!("Group '{group_name}' does not exist"))
                                     }
                                 }
                             }
@@ -124,7 +127,7 @@ pub async fn serve(socket: WebSocketStream<TcpStream>, groups: Arc<GroupTable>) 
                         }
                     }
                     Err(e) => {
-                        eprintln!("Error: expected value or malformed JSON from client: {}. Raw input: {:?}", e, text);
+                        eprintln!("Error: expected value or malformed JSON from client: {e}. Raw input: {text:?}");
                         // We skip this message but keep the connection open
                     }
                 }
