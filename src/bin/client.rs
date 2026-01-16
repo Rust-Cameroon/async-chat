@@ -159,8 +159,18 @@ async fn handle_replies(from_server: net::TcpStream) -> anyhow::Result<()> {
             FromServer::Reaction { author, emoji, message_id, .. } => {
                 println!("{}: reacted with {} to message {}", author, emoji, message_id);
             }
+            FromServer::Reply { author, message, reply_to_author, .. } => {
+                println!("{}: (replying to {}) {}", author, reply_to_author, message);
+            }
             FromServer::GroupsList(list) => {
                 println!("Active groups: {}", list.join(", "));
+            }
+            FromServer::OnlineUsers { group_name, users } => {
+                let user_list: Vec<String> = users.iter().map(|u| u.username.clone()).collect();
+                println!("Online in {}: {}", group_name, user_list.join(", "));
+            }
+            FromServer::PresenceUpdate { username, status } => {
+                println!("{} is now {:?}", username, status);
             }
         }
     }
