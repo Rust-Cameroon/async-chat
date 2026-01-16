@@ -29,6 +29,20 @@ struct ChatMessage {
     is_error: bool,
     timestamp: chrono::DateTime<chrono::Utc>,
     reactions: Vec<(String, String)>, // (emoji, user_name)
+    reply_to: Option<ReplyInfo>, // If this is a reply to another message
+}
+
+#[derive(Clone, PartialEq)]
+struct ReplyInfo {
+    message_id: String,
+    author: String,
+    preview: String,
+}
+
+#[derive(Clone, PartialEq)]
+struct OnlineUser {
+    username: String,
+    status: String, // "online", "away", "offline"
 }
 
 enum ChatAction {
@@ -37,12 +51,15 @@ enum ChatAction {
     Clear,
     AddReaction { msg_index: usize, emoji: String, user: String },
     SetTypingUsers(Vec<String>),
+    SetOnlineUsers(Vec<OnlineUser>),
+    UpdateUserPresence { username: String, status: String },
 }
 
 struct ChatState {
     messages: Vec<ChatMessage>,
     groups: Vec<String>,
     typing_users: Vec<String>,
+    online_users: Vec<OnlineUser>,
 }
 
 impl Reducible for ChatState {
@@ -52,6 +69,7 @@ impl Reducible for ChatState {
         let mut messages = self.messages.clone();
         let mut groups = self.groups.clone();
         let mut typing_users = self.typing_users.clone();
+        let mut online_users = self.online_users.clone();
         match action {
             ChatAction::AddMessage(msg) => {
                 messages.push(msg);
@@ -75,8 +93,18 @@ impl Reducible for ChatState {
             ChatAction::SetTypingUsers(users) => {
                 typing_users = users;
             }
+            ChatAction::SetOnlineUsers(users) => {
+                online_users = users;
+            }
+            ChatAction::UpdateUserPresence { username, status } => {
+                if let Some(user) = online_users.iter_mut().find(|u| u.username == username) {
+                    user.status = status;
+                } else {
+                    online_users.push(OnlineUser { username, status });
+                }
+            }
         }
-        Self { messages, groups, typing_users }.into()
+        Self { messages, groups, typing_users, online_users }.into()
     }
 }
 
