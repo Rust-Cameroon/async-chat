@@ -110,7 +110,8 @@ impl Reducible for ChatState {
 
 #[styled_component(App)]
 pub fn app() -> Html {
-    let chat_state = use_reducer(|| ChatState { messages: Vec::new(), groups: Vec::new(), typing_users: Vec::new() });
+    let chat_state = use_reducer(|| ChatState { messages: Vec::new(), groups: Vec::new(), typing_users: Vec::new(), online_users: Vec::new() });
+    let reply_to_message = use_state(|| None::<(String, String, String)>); // (id, author, preview)
     let input_ref = use_node_ref();
     let group_ref = use_node_ref();
     let name_ref = use_node_ref();
@@ -237,6 +238,8 @@ pub fn app() -> Html {
                             is_error: true,
                             timestamp: chrono::Utc::now(),
                             reactions: Vec::new(),
+                                                reply_to: None,
+                            reply_to: None,
                         }));
                         return;
                     }
@@ -270,6 +273,8 @@ pub fn app() -> Html {
                                                 is_error: false,
                                                 timestamp: chrono::Utc::now(),
                                                 reactions: Vec::new(),
+                                                reply_to: None,
+                                                reply_to: None,
                                             }));
                                             
                                             // Play notification sound and show notification for other's messages
@@ -309,6 +314,7 @@ pub fn app() -> Html {
                                                 is_error: false,
                                                 timestamp: chrono::Utc::now(),
                                                 reactions: Vec::new(),
+                                                reply_to: None,
                                             }));
                                         }
                                         FromServer::Voice { author, duration, data, .. } => {
@@ -320,6 +326,7 @@ pub fn app() -> Html {
                                                 is_error: false,
                                                 timestamp: chrono::Utc::now(),
                                                 reactions: Vec::new(),
+                                                reply_to: None,
                                             }));
                                         }
                                         FromServer::Reaction { message_id, emoji, author, .. } => {
@@ -342,6 +349,7 @@ pub fn app() -> Html {
                                                 is_error: true,
                                                 timestamp: chrono::Utc::now(),
                                                 reactions: Vec::new(),
+                                                reply_to: None,
                                             }));
                                         }
                                     }
@@ -361,6 +369,7 @@ pub fn app() -> Html {
                         is_error: true,
                         timestamp: chrono::Utc::now(),
                         reactions: Vec::new(),
+                                                reply_to: None,
                     }));
                 });
 
@@ -552,6 +561,7 @@ pub fn app() -> Html {
                                         is_error: false,
                                         timestamp: chrono::Utc::now(),
                                         reactions: Vec::new(),
+                                                reply_to: None,
                                     }));
                                 }
                             }
