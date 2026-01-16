@@ -1515,6 +1515,45 @@ pub fn app() -> Html {
                     </div>
                 </div>
 
+                // Online Users Section
+                <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(0,0,0,0.1);">
+                    <div style="font-weight: 700; font-size: 0.75rem; color: #a0aec0; margin-bottom: 10px;">
+                        {"👥 ONLINE USERS ("}{chat_state.online_users.len()}{")"}
+                    </div>
+                    { if chat_state.online_users.is_empty() {
+                        html! {
+                            <div style="font-size: 0.8rem; opacity: 0.6; padding: 10px 0;">
+                                {"No users online yet"}
+                            </div>
+                        }
+                    } else {
+                        html! {
+                            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 150px; overflow-y: auto;">
+                                { for chat_state.online_users.iter().map(|user| {
+                                    let status_color = match user.status.as_str() {
+                                        "Online" => "#2ecc71",
+                                        "Away" => "#f39c12",
+                                        _ => "#95a5a6",
+                                    };
+                                    html! {
+                                        <div style="display: flex; align-items: center; gap: 10px; padding: 5px;">
+                                            <div style="position: relative;">
+                                                <img src={format!("https://ui-avatars.com/api/?name={}&background=random&size=32", user.username)} 
+                                                     style="width: 32px; height: 32px; border-radius: 50%;" />
+                                                <div style={format!("position: absolute; bottom: 0; right: 0; width: 10px; height: 10px; border-radius: 50%; background: {}; border: 2px solid white;", status_color)}></div>
+                                            </div>
+                                            <div>
+                                                <div style="font-size: 0.85rem; font-weight: 500;">{ &user.username }</div>
+                                                <div style="font-size: 0.7rem; opacity: 0.6;">{ &user.status }</div>
+                                            </div>
+                                        </div>
+                                    }
+                                })}
+                            </div>
+                        }
+                    }}
+                </div>
+
                 <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 10px;">
                     <div onclick={{
                         let left_sidebar_visible = left_sidebar_visible.clone();
