@@ -1185,6 +1185,20 @@ pub fn app() -> Html {
                                         <span style="margin-left: 8px; font-weight: 400; opacity: 0.8;">{ formatted_time }</span>
                                     </div>
                                     <div class={bubble_class}>
+                                        // Show reply preview if this is a reply
+                                        { if let Some(ref reply) = m.reply_to {
+                                            html! {
+                                                <div style={format!("background: {}; padding: 8px 12px; border-radius: 8px; margin-bottom: 8px; border-left: 3px solid #0084ff; font-size: 0.85rem;",
+                                                    if m.is_self { "rgba(255,255,255,0.2)" } else { "rgba(0,0,0,0.05)" })}>
+                                                    <div style="font-weight: 600; font-size: 0.75rem; opacity: 0.8; margin-bottom: 2px;">
+                                                        {"↩ Replying to "}{&reply.author}
+                                                    </div>
+                                                    <div style="opacity: 0.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;">
+                                                        {&reply.preview}
+                                                    </div>
+                                                </div>
+                                            }
+                                        } else { html! {} }}
                                         { match &m.content {
                                             MessageContent::Text(text) => html! { <span>{ text }</span> },
                                             MessageContent::File { filename, data } => {
@@ -1296,6 +1310,40 @@ pub fn app() -> Html {
                                                         </span>
                                                     }
                                                 })}
+                                                // Reply button
+                                                {
+                                                    let reply_to_message = reply_to_message.clone();
+                                                    let msg_id_for_reply = m.id.clone();
+                                                    let msg_author_for_reply = m.author.clone();
+                                                    let msg_preview = match &m.content {
+                                                        MessageContent::Text(t) => t.chars().take(50).collect::<String>(),
+                                                        MessageContent::File { filename, .. } => format!("📁 {}", filename),
+                                                        MessageContent::Voice { duration, .. } => format!("🎤 Voice ({:.1}s)", duration),
+                                                    };
+                                                    let on_reply = Callback::from(move |_: MouseEvent| {
+                                                        reply_to_message.set(Some((
+                                                            msg_id_for_reply.clone(),
+                                                            msg_author_for_reply.clone(),
+                                                            msg_preview.clone()
+                                                        )));
+                                                    });
+                                                    html! {
+                                                        <span 
+                                                            onclick={on_reply}
+                                                            style="margin-left: 10px; padding-left: 10px; border-left: 1px solid rgba(0,0,0,0.1);"
+                                                            class={css!(r#"
+                                                                cursor: pointer;
+                                                                transition: transform 0.2s;
+                                                                &:hover {
+                                                                    transform: scale(1.1);
+                                                                }
+                                                            "#)}
+                                                            title="Reply"
+                                                        >
+                                                            {"↩️"}
+                                                        </span>
+                                                    }
+                                                }
                                             </div>
                                         }
                                     } else { html! {} }}
