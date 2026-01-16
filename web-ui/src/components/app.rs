@@ -7,11 +7,15 @@ use async_chat::{FromClient, FromServer};
 use std::sync::Arc;
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use futures::channel::mpsc;
 use web_sys::HtmlInputElement;
 use stylist::yew::styled_component;
+use stylist::css;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+
+use super::audio;
 
 #[derive(Clone, PartialEq)]
 enum MessageContent {
@@ -53,40 +57,85 @@ enum ChatAction {
     SetTypingUsers(Vec<String>),
     SetOnlineUsers(Vec<OnlineUser>),
     UpdateUserPresence { username: String, status: String },
+    SwitchGroup { group_name: String },
+}
+
+#[derive(Clone, PartialEq, Default)]
+struct GroupData {
+    messages: Vec<ChatMessage>,
+    online_users: Vec<OnlineUser>,
 }
 
 struct ChatState {
-    messages: Vec<ChatMessage>,
+    current_group: Option<String>,
     groups: Vec<String>,
+    group_data: HashMap<String, GroupData>,
     typing_users: Vec<String>,
-    online_users: Vec<OnlineUser>,
+}
+
+impl Default for ChatState {
+    fn default() -> Self {
+        Self {
+            current_group: None,
+            groups: Vec::new(),
+            group_data: HashMap::new(),
+            typing_users: Vec::new(),
+        }
+    }
+}
+
+impl ChatState {
+    fn current_messages(&self) -> Vec<ChatMessage> {
+        self.current_group.as_ref()
+            .and_then(|g| self.group_data.get(g))
+            .map(|d| d.messages.clone())
+            .unwrap_or_default()
+    }
+    
+    fn current_online_users(&self) -> Vec<OnlineUser> {
+        self.current_group.as_ref()
+            .and_then(|g| self.group_data.get(g))
+            .map(|d| d.online_users.clone())
+            .unwrap_or_default()
+    }
 }
 
 impl Reducible for ChatState {
     type Action = ChatAction;
 
     fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
-        let mut messages = self.messages.clone();
+        let mut current_group = self.current_group.clone();
         let mut groups = self.groups.clone();
+        let mut group_data = self.group_data.clone();
         let mut typing_users = self.typing_users.clone();
-        let mut online_users = self.online_users.clone();
+        
         match action {
             ChatAction::AddMessage(msg) => {
-                messages.push(msg);
+                if let Some(ref group) = current_group {
+                    let data = group_data.entry(group.clone()).or_default();
+                    data.messages.push(msg);
+                }
             }
             ChatAction::SetGroups(g) => {
                 groups = g;
             }
             ChatAction::Clear => {
-                messages.clear();
+                if let Some(ref group) = current_group {
+                    if let Some(data) = group_data.get_mut(group) {
+                        data.messages.clear();
+                    }
+                }
             }
             ChatAction::AddReaction { msg_index, emoji, user } => {
-                if let Some(msg) = messages.get_mut(msg_index) {
-                    // Toggle reaction: remove if exists, add if not
-                    if let Some(pos) = msg.reactions.iter().position(|(e, u)| e == &emoji && u == &user) {
-                        msg.reactions.remove(pos);
-                    } else {
-                        msg.reactions.push((emoji, user));
+                if let Some(ref group) = current_group {
+                    if let Some(data) = group_data.get_mut(group) {
+                        if let Some(msg) = data.messages.get_mut(msg_index) {
+                            if let Some(pos) = msg.reactions.iter().position(|(e, u)| e == &emoji && u == &user) {
+                                msg.reactions.remove(pos);
+                            } else {
+                                msg.reactions.push((emoji, user));
+                            }
+                        }
                     }
                 }
             }
@@ -94,23 +143,33 @@ impl Reducible for ChatState {
                 typing_users = users;
             }
             ChatAction::SetOnlineUsers(users) => {
-                online_users = users;
-            }
-            ChatAction::UpdateUserPresence { username, status } => {
-                if let Some(user) = online_users.iter_mut().find(|u| u.username == username) {
-                    user.status = status;
-                } else {
-                    online_users.push(OnlineUser { username, status });
+                if let Some(ref group) = current_group {
+                    let data = group_data.entry(group.clone()).or_default();
+                    data.online_users = users;
                 }
             }
+            ChatAction::UpdateUserPresence { username, status } => {
+                if let Some(ref group) = current_group {
+                    let data = group_data.entry(group.clone()).or_default();
+                    if let Some(user) = data.online_users.iter_mut().find(|u| u.username == username) {
+                        user.status = status;
+                    } else {
+                        data.online_users.push(OnlineUser { username, status });
+                    }
+                }
+            }
+            ChatAction::SwitchGroup { group_name } => {
+                current_group = Some(group_name.clone());
+                group_data.entry(group_name).or_default();
+            }
         }
-        Self { messages, groups, typing_users, online_users }.into()
+        Self { current_group, groups, group_data, typing_users }.into()
     }
 }
 
 #[styled_component(App)]
 pub fn app() -> Html {
-    let chat_state = use_reducer(|| ChatState { messages: Vec::new(), groups: Vec::new(), typing_users: Vec::new(), online_users: Vec::new() });
+    let chat_state = use_reducer(ChatState::default);
     let reply_to_message = use_state(|| None::<(String, String, String)>); // (id, author, preview)
     let favorites = use_state(|| Vec::<String>::new()); // List of favorite group names
     let input_ref = use_node_ref();
@@ -175,7 +234,7 @@ pub fn app() -> Html {
     // Auto-scroll effect
     {
         let chat_box_ref = chat_box_ref.clone();
-        let messages_len = chat_state.messages.len();
+        let messages_len = chat_state.current_messages().len();
         use_effect_with(messages_len, move |_| {
             if let Some(div) = chat_box_ref.cast::<web_sys::HtmlElement>() {
                 div.set_scroll_top(div.scroll_height());
@@ -216,6 +275,11 @@ pub fn app() -> Html {
             let my_name = if user_name.is_empty() { "Me".to_string() } else { user_name.clone() };
 
             if group_name.is_empty() { return; }
+            
+            // Switch to the new group (preserves history of other groups)
+            chat_state.dispatch(ChatAction::SwitchGroup { 
+                group_name: group_name.clone() 
+            });
             
             // Add current user to online users list
             chat_state.dispatch(ChatAction::UpdateUserPresence {
@@ -1135,6 +1199,7 @@ pub fn app() -> Html {
                         })
                         .map(|group| {
                             let group_clone = group.clone();
+                            let is_selected = chat_state.current_group.as_ref() == Some(group);
                             let on_group_click = {
                                 let group_ref = group_ref.clone();
                                 let on_join = on_join.clone();
@@ -1145,12 +1210,32 @@ pub fn app() -> Html {
                                     }
                                 })
                             };
+                            // Style for selected vs unselected group
+                            let item_style = if is_selected {
+                                format!("{} background: {}; border-left: 3px solid #0084ff;", 
+                                    contact_item_style.to_string(),
+                                    if *dark_mode { "rgba(0,132,255,0.2)" } else { "rgba(0,132,255,0.1)" }
+                                )
+                            } else {
+                                contact_item_style.to_string()
+                            };
                             html! {
-                                <div onclick={on_group_click} class={contact_item_style.clone()}>
-                                    <img src={format!("https://ui-avatars.com/api/?name={}&background=random", group)} class={avatar_style.clone()} />
+                                <div onclick={on_group_click} class={item_style}>
+                                    <div style="position: relative;">
+                                        <img src={format!("https://ui-avatars.com/api/?name={}&background=random", group)} class={avatar_style.clone()} />
+                                        { if is_selected {
+                                            html! { <div style="position: absolute; bottom: 2px; right: 2px; width: 12px; height: 12px; background: #0084ff; border-radius: 50%; border: 2px solid white;"></div> }
+                                        } else { html! {} }}
+                                    </div>
                                     <div style="flex: 1;">
                                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                                            <span style="font-weight: 600; font-size: 0.9rem;">{ group }</span>
+                                            <span style={format!("font-weight: {}; font-size: 0.9rem; color: {};", 
+                                                if is_selected { "700" } else { "600" },
+                                                if is_selected { "#0084ff" } else { "inherit" }
+                                            )}>{ group }</span>
+                                            { if is_selected {
+                                                html! { <span style="font-size: 0.7rem; background: #0084ff; color: white; padding: 2px 6px; border-radius: 10px;">{"Active"}</span> }
+                                            } else { html! {} }}
                                         </div>
                                         <div style="font-size: 0.75rem; opacity: 0.6;">{"Public Group"}</div>
                                     </div>
@@ -1225,7 +1310,7 @@ pub fn app() -> Html {
                         <span style={format!("background: {}; padding: 0 15px; font-size: 0.75rem; color: #a0aec0; font-weight: 600; position: relative; z-index: 2;", bg_color)}>{"Async History"}</span>
                     </div>
 
-                    { for chat_state.messages.iter().enumerate().map(|(idx, m)| {
+                    { for chat_state.current_messages().iter().enumerate().map(|(idx, m)| {
                         let is_system = m.author == "System" || m.author == "Error" || m.is_error;
                         
                         if is_system {
@@ -1580,8 +1665,8 @@ pub fn app() -> Html {
                 </div>
 
                 <div class={profile_large_style}>
-                    <img src={format!("https://ui-avatars.com/api/?name={}&background=3498db&color=fff", chat_state.messages.last().map(|m| m.author.as_str()).unwrap_or("User"))} class={avatar_style.clone()} style="width: 100px; height: 100px; margin-bottom: 20px;" />
-                    <h2 style="margin: 0; font-size: 1.25rem;">{ chat_state.messages.last().map(|m| m.author.as_str()).unwrap_or("Async User") }</h2>
+                    <img src={format!("https://ui-avatars.com/api/?name={}&background=3498db&color=fff", chat_state.current_group.as_deref().unwrap_or("User"))} class={avatar_style.clone()} style="width: 100px; height: 100px; margin-bottom: 20px;" />
+                    <h2 style="margin: 0; font-size: 1.25rem;">{ chat_state.current_group.as_deref().unwrap_or("Select a Group") }</h2>
                     <div style="opacity: 0.6; font-size: 0.85rem; margin-top: 5px;">{"Active Member"}</div>
                 </div>
 
@@ -1599,9 +1684,9 @@ pub fn app() -> Html {
                 // Online Users Section
                 <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(0,0,0,0.1);">
                     <div style="font-weight: 700; font-size: 0.75rem; color: #a0aec0; margin-bottom: 10px;">
-                        {"👥 ONLINE USERS ("}{chat_state.online_users.len()}{")"}
+                        {"👥 ONLINE USERS ("}{chat_state.current_online_users().len()}{")"}
                     </div>
-                    { if chat_state.online_users.is_empty() {
+                    { if chat_state.current_online_users().is_empty() {
                         html! {
                             <div style="font-size: 0.8rem; opacity: 0.6; padding: 10px 0;">
                                 {"No users online yet"}
@@ -1610,7 +1695,7 @@ pub fn app() -> Html {
                     } else {
                         html! {
                             <div style="display: flex; flex-direction: column; gap: 8px; max-height: 150px; overflow-y: auto;">
-                                { for chat_state.online_users.iter().map(|user| {
+                                { for chat_state.current_online_users().iter().map(|user| {
                                     let status_color = match user.status.as_str() {
                                         "Online" => "#2ecc71",
                                         "Away" => "#f39c12",
@@ -1650,7 +1735,7 @@ pub fn app() -> Html {
                         <div style="font-size: 0.7rem; color: #3182ce; cursor: pointer;">{"View All"}</div>
                     </div>
                     <div class={attachment_grid}>
-                        { for chat_state.messages.iter().filter_map(|m| {
+                        { for chat_state.current_messages().iter().filter_map(|m| {
                             if let MessageContent::File { filename, .. } = &m.content {
                                 let (icon, class) = if filename.to_lowercase().ends_with(".pdf") { ("📄", "pdf") }
                                                else if filename.to_lowercase().ends_with(".mp3") || filename.to_lowercase().ends_with(".wav") { ("♫", "audio") }
