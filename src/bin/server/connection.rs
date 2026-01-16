@@ -98,6 +98,34 @@ pub async fn serve(socket: WebSocketStream<TcpStream>, groups: Arc<GroupTable>) 
                                     None => Err(format!("Group '{}' does not exist", group_name)),
                                 }
                             }
+                            FromClient::PostReply { group_name, author, message, reply_to_id, reply_to_author, reply_to_preview } => {
+                                match groups.get(&*group_name) {
+                                    Some(group) => {
+                                        group.post_reply(author, message, reply_to_id, reply_to_author, reply_to_preview);
+                                        Ok(())
+                                    }
+                                    None => Err(format!("Group '{}' does not exist", group_name)),
+                                }
+                            }
+                            FromClient::SetPresence { username, status } => {
+                                // Broadcast presence to all groups (simplified - in production you'd track which groups the user is in)
+                                for (_name, group) in groups.iter() {
+                                    group.broadcast_presence(username.clone(), status.clone());
+                                }
+                                Ok(())
+                            }
+                            FromClient::RequestOnlineUsers { group_name } => {
+                                // For now, return empty list - full implementation would track users per group
+                                let response = async_chat::FromServer::OnlineUsers {
+                                    group_name: group_name.clone(),
+                                    users: Vec::new(),
+                                };
+                                if let Ok(json) = serde_json::to_string(&response) {
+                                    let _ = write_half.write_all(json.as_bytes()).await;
+                                    let _ = write_half.write_all(b"\n").await;
+                                }
+                                Ok(())
+                            }
                         };
                         // If an error occurred (logical error), send an error message back to the client
                         if let Err(message) = result {
