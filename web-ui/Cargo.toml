@@ -55,4 +55,11 @@ features = [
   "FileReader",
   "ProgressEvent",
   "Performance",
+  "AudioContext",
+  "AudioDestinationNode",
+  "AudioNode",
+  "AudioParam",
+  "GainNode",
+  "OscillatorNode",
+  "OscillatorType",
 ]
