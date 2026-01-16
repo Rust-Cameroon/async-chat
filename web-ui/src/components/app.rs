@@ -112,6 +112,7 @@ impl Reducible for ChatState {
 pub fn app() -> Html {
     let chat_state = use_reducer(|| ChatState { messages: Vec::new(), groups: Vec::new(), typing_users: Vec::new(), online_users: Vec::new() });
     let reply_to_message = use_state(|| None::<(String, String, String)>); // (id, author, preview)
+    let favorites = use_state(|| Vec::<String>::new()); // List of favorite group names
     let input_ref = use_node_ref();
     let group_ref = use_node_ref();
     let name_ref = use_node_ref();
@@ -212,9 +213,15 @@ pub fn app() -> Html {
         Callback::from(move |_: MouseEvent| {
             let group_name = group_ref.cast::<HtmlInputElement>().expect("input exists").value().trim().to_string();
             let user_name = name_ref.cast::<HtmlInputElement>().expect("name exists").value().trim().to_string();
-            let my_name = if user_name.is_empty() { "Me".to_string() } else { user_name };
+            let my_name = if user_name.is_empty() { "Me".to_string() } else { user_name.clone() };
 
             if group_name.is_empty() { return; }
+            
+            // Add current user to online users list
+            chat_state.dispatch(ChatAction::UpdateUserPresence {
+                username: my_name.clone(),
+                status: "Online".to_string(),
+            });
             
             if let Some(sender) = &*tx {
                 let _ = sender.unbounded_send(FromClient::Join { group_name: Arc::new(group_name) });
@@ -264,10 +271,18 @@ pub fn app() -> Html {
                                     match server_msg {
                                         FromServer::Message { group_name: _, author, message } => {
                                             let is_self = author.to_string() == my_name_captured;
+                                            let author_str = author.to_string();
+                                            
+                                            // Add/update user in online users list
+                                            chat_state_listener.dispatch(ChatAction::UpdateUserPresence {
+                                                username: author_str.clone(),
+                                                status: "Online".to_string(),
+                                            });
+                                            
                                             chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
                                                 id: uuid::Uuid::new_v4().to_string(),
                                                 is_self,
-                                                author: author.to_string(),
+                                                author: author_str,
                                                 content: MessageContent::Text(message.to_string()),
                                                 is_error: false,
                                                 timestamp: chrono::Utc::now(),
@@ -304,10 +319,15 @@ pub fn app() -> Html {
                                             }
                                         }
                                         FromServer::File { author, filename, data, .. } => {
+                                            let author_str = author.to_string();
+                                            chat_state_listener.dispatch(ChatAction::UpdateUserPresence {
+                                                username: author_str.clone(),
+                                                status: "Online".to_string(),
+                                            });
                                             chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
                                                 id: uuid::Uuid::new_v4().to_string(),
-                                                is_self: author.to_string() == my_name_captured,
-                                                author: author.to_string(),
+                                                is_self: author_str == my_name_captured,
+                                                author: author_str,
                                                 content: MessageContent::File { filename, data },
                                                 is_error: false,
                                                 timestamp: chrono::Utc::now(),
@@ -316,10 +336,15 @@ pub fn app() -> Html {
                                             }));
                                         }
                                         FromServer::Voice { author, duration, data, .. } => {
+                                            let author_str = author.to_string();
+                                            chat_state_listener.dispatch(ChatAction::UpdateUserPresence {
+                                                username: author_str.clone(),
+                                                status: "Online".to_string(),
+                                            });
                                             chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
                                                 id: uuid::Uuid::new_v4().to_string(),
-                                                is_self: author.to_string() == my_name_captured,
-                                                author: author.to_string(),
+                                                is_self: author_str == my_name_captured,
+                                                author: author_str,
                                                 content: MessageContent::Voice { duration, data },
                                                 is_error: false,
                                                 timestamp: chrono::Utc::now(),
@@ -473,6 +498,55 @@ pub fn app() -> Html {
                 let curr = input.value();
                 input.set_value(&format!("{}{}", curr, emoji));
                 show_emojis.set(false);
+            }
+        })
+    };
+
+    // Chat button - focus input and scroll to bottom
+    let on_chat_click = {
+        let input_ref = input_ref.clone();
+        let chat_box_ref = chat_box_ref.clone();
+        Callback::from(move |_: MouseEvent| {
+            if let Some(input) = input_ref.cast::<HtmlInputElement>() {
+                let _ = input.focus();
+            }
+            // Scroll chat to bottom
+            if let Some(chat_box) = chat_box_ref.cast::<web_sys::HtmlElement>() {
+                chat_box.set_scroll_top(chat_box.scroll_height());
+            }
+        })
+    };
+
+    // View Friends - show left sidebar
+    let on_view_friends_click = {
+        let left_sidebar_visible = left_sidebar_visible.clone();
+        Callback::from(move |_: MouseEvent| {
+            left_sidebar_visible.set(true);
+        })
+    };
+
+    // Add to Favorites
+    let on_add_favorite_click = {
+        let group_ref = group_ref.clone();
+        let favorites = favorites.clone();
+        Callback::from(move |_: MouseEvent| {
+            if let Some(group_el) = group_ref.cast::<HtmlInputElement>() {
+                let group_name = group_el.value().trim().to_string();
+                if !group_name.is_empty() {
+                    let mut current_favs = (*favorites).clone();
+                    if current_favs.contains(&group_name) {
+                        // Remove from favorites
+                        current_favs.retain(|g| g != &group_name);
+                        web_sys::window().unwrap().alert_with_message(&format!("Removed '{}' from favorites!", group_name)).ok();
+                    } else {
+                        // Add to favorites
+                        current_favs.push(group_name.clone());
+                        web_sys::window().unwrap().alert_with_message(&format!("Added '{}' to favorites!", group_name)).ok();
+                    }
+                    favorites.set(current_favs);
+                } else {
+                    web_sys::window().unwrap().alert_with_message("Please join a group first to add it to favorites!").ok();
+                }
             }
         })
     };
@@ -1512,14 +1586,7 @@ pub fn app() -> Html {
                 </div>
 
                 <div class={action_grid_style}>
-                    <div onclick={{
-                        let input_ref = input_ref.clone();
-                        Callback::from(move |_: MouseEvent| {
-                            if let Some(input) = input_ref.cast::<HtmlInputElement>() {
-                                input.focus().ok();
-                            }
-                        })
-                    }} class={action_card_style.clone()} style="cursor: pointer;">
+                    <div onclick={on_chat_click.clone()} class={action_card_style.clone()} style="cursor: pointer;">
                         <span class="icon">{"💬"}</span>
                         <span class="label">{"Chat"}</span>
                     </div>
@@ -1569,15 +1636,10 @@ pub fn app() -> Html {
                 </div>
 
                 <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 10px;">
-                    <div onclick={{
-                        let left_sidebar_visible = left_sidebar_visible.clone();
-                        Callback::from(move |_: MouseEvent| {
-                            left_sidebar_visible.set(true);
-                        })
-                    }} style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; padding: 8px; border-radius: 8px; transition: background 0.2s;" class={css!("&:hover { background: rgba(0,0,0,0.05); }")}>
+                    <div onclick={on_view_friends_click.clone()} style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; padding: 8px; border-radius: 8px; transition: background 0.2s;" class={css!("&:hover { background: rgba(0,0,0,0.05); }")}>
                         <span>{"👥"}</span> {"View Friends / Groups"}
                     </div>
-                    <div style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; padding: 8px; border-radius: 8px; transition: background 0.2s;" class={css!("&:hover { background: rgba(0,0,0,0.05); }")}>
+                    <div onclick={on_add_favorite_click.clone()} style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; padding: 8px; border-radius: 8px; transition: background 0.2s;" class={css!("&:hover { background: rgba(0,0,0,0.05); }")}>
                         <span>{"⭐"}</span> {"Add to Favorites"}
                     </div>
                 </div>
