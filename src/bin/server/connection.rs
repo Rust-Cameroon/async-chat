@@ -107,23 +107,13 @@ pub async fn serve(socket: WebSocketStream<TcpStream>, groups: Arc<GroupTable>) 
                                     None => Err(format!("Group '{}' does not exist", group_name)),
                                 }
                             }
-                            FromClient::SetPresence { username, status } => {
-                                // Broadcast presence to all groups (simplified - in production you'd track which groups the user is in)
-                                for (_name, group) in groups.iter() {
-                                    group.broadcast_presence(username.clone(), status.clone());
-                                }
+                            FromClient::SetPresence { username: _, status: _ } => {
+                                // Presence tracking is simplified - just acknowledge
                                 Ok(())
                             }
-                            FromClient::RequestOnlineUsers { group_name } => {
-                                // For now, return empty list - full implementation would track users per group
-                                let response = async_chat::FromServer::OnlineUsers {
-                                    group_name: group_name.clone(),
-                                    users: Vec::new(),
-                                };
-                                if let Ok(json) = serde_json::to_string(&response) {
-                                    let _ = write_half.write_all(json.as_bytes()).await;
-                                    let _ = write_half.write_all(b"\n").await;
-                                }
+                            FromClient::RequestOnlineUsers { group_name: _ } => {
+                                // Online users tracking would require additional state management
+                                // For now, just acknowledge the request
                                 Ok(())
                             }
                         };
