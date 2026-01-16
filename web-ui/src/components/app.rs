@@ -350,6 +350,35 @@ pub fn app() -> Html {
                                                 reply_to: None,
                                             }));
                                         }
+                                        FromServer::Reply { author, message, reply_to_id, reply_to_author, reply_to_preview, .. } => {
+                                            chat_state_listener.dispatch(ChatAction::AddMessage(ChatMessage {
+                                                id: uuid::Uuid::new_v4().to_string(),
+                                                is_self: author.to_string() == my_name_captured,
+                                                author: author.to_string(),
+                                                content: MessageContent::Text(message.to_string()),
+                                                is_error: false,
+                                                timestamp: chrono::Utc::now(),
+                                                reactions: Vec::new(),
+                                                reply_to: Some(ReplyInfo {
+                                                    message_id: reply_to_id,
+                                                    author: reply_to_author,
+                                                    preview: reply_to_preview,
+                                                }),
+                                            }));
+                                        }
+                                        FromServer::OnlineUsers { users, .. } => {
+                                            let online: Vec<OnlineUser> = users.iter().map(|u| OnlineUser {
+                                                username: u.username.clone(),
+                                                status: format!("{:?}", u.status),
+                                            }).collect();
+                                            chat_state_listener.dispatch(ChatAction::SetOnlineUsers(online));
+                                        }
+                                        FromServer::PresenceUpdate { username, status } => {
+                                            chat_state_listener.dispatch(ChatAction::UpdateUserPresence {
+                                                username: username.to_string(),
+                                                status: format!("{:?}", status),
+                                            });
+                                        }
                                     }
                                 }
                             }
