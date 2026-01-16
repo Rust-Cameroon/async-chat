@@ -1,28 +1,28 @@
-use stylist::css;
+use stylist::{css, StyleSource};
 
 /// Generate all styles based on dark mode state
 pub struct AppStyles {
-    pub container: String,
-    pub sidebar_left: String,
-    pub sidebar_right: String,
-    pub chat_main: String,
-    pub chat_header: String,
-    pub chat_messages: String,
-    pub chat_footer: String,
-    pub input_wrapper: String,
-    pub avatar: String,
-    pub search_input: String,
-    pub contact_item: String,
-    pub contact_item_active: String,
-    pub bubble_base: String,
-    pub self_bubble: String,
-    pub other_bubble: String,
-    pub error_bubble: String,
-    pub send_btn: String,
-    pub icon_btn: String,
-    pub connection_pill: String,
-    pub action_grid: String,
-    pub action_card: String,
+    pub container: StyleSource,
+    pub sidebar_left: StyleSource,
+    pub sidebar_right: StyleSource,
+    pub chat_main: StyleSource,
+    pub chat_header: StyleSource,
+    pub chat_messages: StyleSource,
+    pub chat_footer: StyleSource,
+    pub input_wrapper: StyleSource,
+    pub avatar: StyleSource,
+    pub search_input: StyleSource,
+    pub contact_item: StyleSource,
+    pub contact_item_active: StyleSource,
+    pub bubble_base: StyleSource,
+    pub self_bubble: StyleSource,
+    pub other_bubble: StyleSource,
+    pub error_bubble: StyleSource,
+    pub send_btn: StyleSource,
+    pub icon_btn: StyleSource,
+    pub connection_pill: StyleSource,
+    pub action_grid: StyleSource,
+    pub action_card: StyleSource,
 }
 
 impl AppStyles {
@@ -65,7 +65,7 @@ impl AppStyles {
                 @media (max-width: 600px) {
                     font-size: 14px;
                 }
-            "#, left=left_w, right=right_w, bg=bg_color, text=text_color).to_string(),
+            "#, left=left_w, right=right_w, bg=bg_color, text=text_color)
 
             sidebar_left: css!(r#"
                 background-color: ${sidebar_bg};
@@ -76,7 +76,7 @@ impl AppStyles {
                 overflow: hidden;
                 transition: all 0.3s ease;
                 min-width: 0;
-            "#, sidebar_bg=sidebar_bg, border=border_color).to_string(),
+            "#, sidebar_bg=sidebar_bg, border=border_color)
 
             sidebar_right: css!(r#"
                 background-color: ${sidebar_bg};
@@ -87,7 +87,7 @@ impl AppStyles {
                 overflow-y: auto;
                 transition: all 0.3s ease;
                 @media (max-width: 1200px) { display: none; }
-            "#, sidebar_bg=sidebar_bg, border=border_color).to_string(),
+            "#, sidebar_bg=sidebar_bg, border=border_color)
 
             chat_main: css!(r#"
                 display: flex;
@@ -95,7 +95,7 @@ impl AppStyles {
                 background-color: ${bg};
                 overflow: hidden;
                 transition: all 0.3s ease;
-            "#, bg=bg_color).to_string(),
+            "#, bg=bg_color)
 
             chat_header: css!(r#"
                 display: flex;
@@ -108,7 +108,7 @@ impl AppStyles {
                 @media (max-width: 600px) {
                     padding: 12px 15px;
                 }
-            "#, border=border_color).to_string(),
+            "#, border=border_color)
 
             chat_messages: css!(r#"
                 flex: 1;
@@ -126,7 +126,7 @@ impl AppStyles {
                     padding: 15px;
                     gap: 15px;
                 }
-            "#, bg=bg_color).to_string(),
+            "#, bg=bg_color)
 
             chat_footer: css!(r#"
                 padding: 15px 25px 25px;
@@ -137,7 +137,7 @@ impl AppStyles {
                 @media (max-width: 600px) {
                     padding: 10px 15px 15px;
                 }
-            "#, footer_bg=footer_bg).to_string(),
+            "#, footer_bg=footer_bg)
 
             input_wrapper: css!(r#"
                 background-color: ${input_bg};
@@ -166,14 +166,14 @@ impl AppStyles {
                         padding: 8px 0;
                     }
                 }
-            "#, input_bg=input_bg, text=text_color).to_string(),
+            "#, input_bg=input_bg, text=text_color)
 
             avatar: css!(r#"
                 width: 50px;
                 height: 50px;
                 border-radius: 50%;
                 object-fit: cover;
-            "#).to_string(),
+            "#)
 
             search_input: css!(r#"
                 width: 100%;
@@ -186,7 +186,7 @@ impl AppStyles {
                 outline: none;
                 transition: all 0.2s ease;
                 &:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1); }
-            "#, border=border_color, input_bg=input_bg, text=text_color).to_string(),
+            "#, border=border_color, input_bg=input_bg, text=text_color)
 
             contact_item: css!(r#"
                 display: flex;
@@ -201,12 +201,12 @@ impl AppStyles {
                     background-color: ${hover}; 
                     transform: translateX(5px);
                 }
-            "#, hover=hover_bg).to_string(),
+            "#, hover=hover_bg)
 
             contact_item_active: css!(r#"
                 background-color: ${hover};
                 border-left: 3px solid #0084ff;
-            "#, hover=hover_bg).to_string(),
+            "#, hover=hover_bg)
 
             bubble_base: css!(r#"
                 max-width: 70%;
@@ -234,14 +234,14 @@ impl AppStyles {
                     padding: 10px 14px;
                     font-size: 0.9rem;
                 }
-            "#).to_string(),
+            "#)
 
             self_bubble: css!(r#"
                 align-self: flex-end;
                 background: linear-gradient(135deg, #0084ff 0%, #00c6ff 100%);
                 color: white;
                 border-bottom-right-radius: 4px;
-            "#).to_string(),
+            "#)
 
             other_bubble: css!(r#"
                 align-self: flex-start;
@@ -249,13 +249,13 @@ impl AppStyles {
                 color: ${other_text};
                 border-bottom-left-radius: 4px;
             "#, other_bg=if dark_mode { "#3a3a3a" } else { "#f1f3f4" }, 
-               other_text=if dark_mode { "#e0e0e0" } else { "#1a1a1a" }).to_string(),
+               other_text=if dark_mode { "#e0e0e0" } else { "#1a1a1a" })
 
             error_bubble: css!(r#"
                 background-color: #ffebee;
                 color: #c62828;
                 border-left: 4px solid #c62828;
-            "#).to_string(),
+            "#)
 
             send_btn: css!(r#"
                 width: 45px;
@@ -278,7 +278,7 @@ impl AppStyles {
                     height: 40px;
                     font-size: 0.9rem;
                 }
-            "#).to_string(),
+            "#)
 
             icon_btn: css!(r#"
                 font-size: 1.3rem;
@@ -286,7 +286,7 @@ impl AppStyles {
                 opacity: 0.6;
                 transition: opacity 0.2s, transform 0.2s;
                 &:hover { opacity: 1; transform: scale(1.1); }
-            "#).to_string(),
+            "#)
 
             connection_pill: css!(r#"
                 font-size: 0.75rem;
@@ -312,14 +312,14 @@ impl AppStyles {
                     50% { opacity: 0.5; }
                 }
             "#, pill_bg=if dark_mode { "#3a3a3a" } else { "#edf2f7" }, 
-               pill_text=if dark_mode { "#a0aec0" } else { "#4a5568" }).to_string(),
+               pill_text=if dark_mode { "#a0aec0" } else { "#4a5568" })
 
             action_grid: css!(r#"
                 display: grid;
                 grid-template-columns: 1fr 1fr;
                 gap: 10px;
                 margin-top: 20px;
-            "#).to_string(),
+            "#)
 
             action_card: css!(r#"
                 background: ${card_bg};
@@ -338,7 +338,7 @@ impl AppStyles {
                 }
                 .icon { font-size: 1.5rem; color: #0084ff; }
                 .label { font-size: 0.8rem; font-weight: 500; color: ${text}; }
-            "#, card_bg=input_bg, border=border_color, text=text_color).to_string(),
+            "#, card_bg=input_bg, border=border_color, text=text_color)
         }
     }
 }
