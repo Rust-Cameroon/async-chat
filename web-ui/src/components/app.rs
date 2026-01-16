@@ -1208,16 +1208,15 @@ pub fn app() -> Html {
                                 })
                             };
                             // Style for selected vs unselected group
-                            let item_style = if is_selected {
-                                format!("{} background: {}; border-left: 3px solid #0084ff;", 
-                                    contact_item_style.to_string(),
+                            let selected_style = if is_selected {
+                                format!("background: {}; border-left: 3px solid #0084ff;", 
                                     if *dark_mode { "rgba(0,132,255,0.2)" } else { "rgba(0,132,255,0.1)" }
                                 )
                             } else {
-                                contact_item_style.to_string()
+                                String::new()
                             };
                             html! {
-                                <div onclick={on_group_click} class={item_style}>
+                                <div onclick={on_group_click} class={contact_item_style.clone()} style={selected_style}>
                                     <div style="position: relative;">
                                         <img src={format!("https://ui-avatars.com/api/?name={}&background=random", group)} class={avatar_style.clone()} />
                                         { if is_selected {
