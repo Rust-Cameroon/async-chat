@@ -1310,40 +1310,6 @@ pub fn app() -> Html {
                                                         </span>
                                                     }
                                                 })}
-                                                // Reply button
-                                                {
-                                                    let reply_to_message = reply_to_message.clone();
-                                                    let msg_id_for_reply = m.id.clone();
-                                                    let msg_author_for_reply = m.author.clone();
-                                                    let msg_preview = match &m.content {
-                                                        MessageContent::Text(t) => t.chars().take(50).collect::<String>(),
-                                                        MessageContent::File { filename, .. } => format!("📁 {}", filename),
-                                                        MessageContent::Voice { duration, .. } => format!("🎤 Voice ({:.1}s)", duration),
-                                                    };
-                                                    let on_reply = Callback::from(move |_: MouseEvent| {
-                                                        reply_to_message.set(Some((
-                                                            msg_id_for_reply.clone(),
-                                                            msg_author_for_reply.clone(),
-                                                            msg_preview.clone()
-                                                        )));
-                                                    });
-                                                    html! {
-                                                        <span 
-                                                            onclick={on_reply}
-                                                            style="margin-left: 10px; padding-left: 10px; border-left: 1px solid rgba(0,0,0,0.1);"
-                                                            class={css!(r#"
-                                                                cursor: pointer;
-                                                                transition: transform 0.2s;
-                                                                &:hover {
-                                                                    transform: scale(1.1);
-                                                                }
-                                                            "#)}
-                                                            title="Reply"
-                                                        >
-                                                            {"↩️"}
-                                                        </span>
-                                                    }
-                                                }
                                             </div>
                                         }
                                     } else { html! {} }}
