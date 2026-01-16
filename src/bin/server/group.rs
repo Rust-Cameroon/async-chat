@@ -27,6 +27,17 @@ pub enum BroadcastPacket {
         message_id: String,
         emoji: String,
     },
+    Reply {
+        author: Arc<String>,
+        message: Arc<String>,
+        reply_to_id: String,
+        reply_to_author: String,
+        reply_to_preview: String,
+    },
+    PresenceUpdate {
+        username: Arc<String>,
+        status: async_chat::UserStatus,
+    },
 }
 
 /// A named group that broadcasts messages to all connected subscribers.
@@ -68,6 +79,16 @@ impl Group {
         eprintln!("Server: Group '{}' broadcasting reaction '{}' from '{}' to message '{}'", self.name, emoji, author, message_id);
         let _ = self.sender.send(BroadcastPacket::Reaction { author, message_id, emoji });
     }
+
+    pub fn post_reply(&self, author: Arc<String>, message: Arc<String>, reply_to_id: String, reply_to_author: String, reply_to_preview: String) {
+        eprintln!("Server: Group '{}' broadcasting reply from '{}' to message by '{}'", self.name, author, reply_to_author);
+        let _ = self.sender.send(BroadcastPacket::Reply { author, message, reply_to_id, reply_to_author, reply_to_preview });
+    }
+
+    pub fn broadcast_presence(&self, username: Arc<String>, status: async_chat::UserStatus) {
+        eprintln!("Server: Group '{}' broadcasting presence update for '{}': {:?}", self.name, username, status);
+        let _ = self.sender.send(BroadcastPacket::PresenceUpdate { username, status });
+    }
 }
 
 /// Handles the lifecycle of a subscriber: receiving messages and sending them over their connection.
@@ -104,6 +125,18 @@ async fn handle_subscriber(
                         author,
                         message_id,
                         emoji,
+                    },
+                    BroadcastPacket::Reply { author, message, reply_to_id, reply_to_author, reply_to_preview } => FromServer::Reply {
+                        group_name: group_name.clone(),
+                        author,
+                        message,
+                        reply_to_id,
+                        reply_to_author,
+                        reply_to_preview,
+                    },
+                    BroadcastPacket::PresenceUpdate { username, status } => FromServer::PresenceUpdate {
+                        username,
+                        status,
                     },
                 };
 
