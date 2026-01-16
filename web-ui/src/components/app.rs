@@ -356,16 +356,11 @@ pub fn app() -> Html {
                                             
                                             // Play notification sound and show notification for other's messages
                                             if !is_self {
-                                                // Play sound
+                                                // Play sound using Web Audio API
+                                                audio::play_notification_sound();
+                                                
+                                                // Show desktop notification
                                                 if let Some(window) = web_sys::window() {
-1                                                    // Use Web Audio API for sound
-                                                    audio::play_notification_sound();
-                                                    // REMOVED: if let Ok(audio) = web_sys::HtmlAudioElement::new() {
-                                                        let _ = audio.set_src("data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZUQ0PVanm8LJeGAg+ltryy3k0Bip+zPLaizsKGGS57OShVhMJT6Lh8bllHAU2kdb0zHo1Bit+zPDbjDwLFmm57+idUQwPWKzn7LFjGgk9l9vyyXo1Byt9zPDdjTwLFmm37+meUgwPWKzm7LFjGgk+mNryx3w2CCt8y+/dkD0MFmq37uidUw0PWavl7LNkGQk9mNvxx342CCx8yu/ckT4MFmq47+idUw0PWqzm7LBiGgk9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4MFmq47+idUw0PWqzm7LBiGgo9l9vxx302CCt8y+/dkT4M");
-                                                        let _ = audio.play();
-                                                    }
-                                                    
-                                                    // Show desktop notification
                                                     if let Ok(notification) = js_sys::Reflect::get(&window, &"Notification".into()) {
                                                         if !notification.is_undefined() {
                                                             let permission = js_sys::Reflect::get(&notification, &"permission".into())
@@ -421,7 +416,7 @@ pub fn app() -> Html {
                                         FromServer::Reaction { message_id, emoji, author, .. } => {
                                             // Find the message and update its reactions
                                             chat_state_listener.dispatch(ChatAction::AddReaction {
-                                                msg_index: chat_state_listener.messages.iter().position(|m| m.id == message_id).unwrap_or(0),
+                                                msg_index: chat_state_listener.current_messages().iter().position(|m| m.id == message_id).unwrap_or(0),
                                                 emoji,
                                                 user: author.to_string(),
                                             });
