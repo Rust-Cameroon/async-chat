@@ -239,7 +239,6 @@ pub fn app() -> Html {
                             timestamp: chrono::Utc::now(),
                             reactions: Vec::new(),
                                                 reply_to: None,
-                            reply_to: None,
                         }));
                         return;
                     }
@@ -273,7 +272,6 @@ pub fn app() -> Html {
                                                 is_error: false,
                                                 timestamp: chrono::Utc::now(),
                                                 reactions: Vec::new(),
-                                                reply_to: None,
                                                 reply_to: None,
                                             }));
                                             
