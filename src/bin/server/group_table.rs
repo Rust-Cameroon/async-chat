@@ -16,14 +16,6 @@ impl GroupTable {
     }
 
     /// Retrieves a group by name, if it exists.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - The name of the group to retrieve.
-    ///
-    /// # Returns
-    ///
-    /// An `Option` containing the group, or `None` if it doesn't exist.
     pub fn get(&self, name: &String) -> Option<Arc<Group>> {
         self.0.lock().unwrap().get(name).cloned()
     }
@@ -35,6 +27,10 @@ impl GroupTable {
             .entry(name.clone())
             .or_insert_with(|| Arc::new(Group::new(name)))
             .clone()
+    }
+
+    pub fn list_groups(&self) -> Vec<String> {
+        self.0.lock().unwrap().keys().map(|k| k.to_string()).collect()
     }
 }
 

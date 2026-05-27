@@ -1,0 +1,65 @@
+[package]
+name = "async-chat-web"
+version = "0.1.0"
+edition = "2021"
+authors = ["Christian yemele <yemelechristian2@gmail.com>"]
+
+[dependencies]
+yew = { version = "0.21", features = ["csr"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+gloo-net = { version = "0.5", features = ["websocket"] }
+gloo-timers = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+stylist = { version = "0.13", features = ["yew"] }
+chrono = { version = "0.4", features = ["wasmbind", "serde"] }
+uuid = { version = "1.0", features = ["v4", "wasm-bindgen"] }
+log = "0.4"
+wasm-logger = "0.2"
+console_error_panic_hook = "0.1"
+futures-util = "0.3"
+futures = "0.3"
+js-sys = "0.3"
+
+[dependencies.async-chat]
+path = ".."
+
+[dependencies.web-sys]
+version = "0.3"
+features = [
+  "MessageEvent",
+  "WebSocket",
+  "CloseEvent",
+  "ErrorEvent",
+  "console",
+  "Document",
+  "Element",
+  "HtmlElement",
+  "HtmlInputElement",
+  "Window",
+  "KeyboardEvent",
+  "Storage",
+  "Location",
+  "History",
+  "HtmlAudioElement",
+  "MediaRecorder",
+  "MediaRecorderOptions",
+  "MediaStream",
+  "MediaStreamConstraints",
+  "MediaDevices",
+  "Navigator",
+  "Blob",
+  "BlobEvent",
+  "BlobPropertyBag",
+  "FileReader",
+  "ProgressEvent",
+  "Performance",
+  "AudioContext",
+  "AudioDestinationNode",
+  "AudioNode",
+  "AudioParam",
+  "GainNode",
+  "OscillatorNode",
+  "OscillatorType",
+]

@@ -9,26 +9,116 @@ use serde::{Deserialize, Serialize};
 pub mod utils;
 
 /// Messages that clients can send to the server.
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum FromClient {
     /// Join a group by name.
     Join { group_name: Arc<String> },
     /// Post a message to a group.
     Post {
         group_name: Arc<String>,
+        author: Arc<String>,
         message: Arc<String>,
     },
+    RequestGroups,
+    PostFile {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        filename: String,
+        data: String, // Base64
+    },
+    PostVoice {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        duration: f64, // Duration in seconds
+        data: String, // Base64 encoded audio
+    },
+    PostReaction {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        message_id: String,
+        emoji: String,
+    },
+    /// Reply to a specific message
+    PostReply {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        message: Arc<String>,
+        reply_to_id: String,
+        reply_to_author: String,
+        reply_to_preview: String,
+    },
+    /// Set user's online status
+    SetPresence {
+        username: Arc<String>,
+        status: UserStatus,
+    },
+    /// Request list of online users in a group
+    RequestOnlineUsers { group_name: Arc<String> },
+}
+
+/// User online status
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum UserStatus {
+    Online,
+    Away,
+    Offline,
 }
 /// Messages that the server sends back to clients.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum FromServer {
     /// A message has been posted to a group.
     Message {
         group_name: Arc<String>,
+        author: Arc<String>,
         message: Arc<String>,
     },
     /// The server encountered an error.
     Error(String),
+    File {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        filename: String,
+        data: String, // Base64
+    },
+    Voice {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        duration: f64,
+        data: String, // Base64 encoded audio
+    },
+    Reaction {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        message_id: String,
+        emoji: String,
+    },
+    /// A reply to a specific message
+    Reply {
+        group_name: Arc<String>,
+        author: Arc<String>,
+        message: Arc<String>,
+        reply_to_id: String,
+        reply_to_author: String,
+        reply_to_preview: String,
+    },
+    GroupsList(Vec<String>),
+    /// List of online users in a group
+    OnlineUsers {
+        group_name: Arc<String>,
+        users: Vec<OnlineUser>,
+    },
+    /// User presence update
+    PresenceUpdate {
+        username: Arc<String>,
+        status: UserStatus,
+    },
+}
+
+/// Online user info
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct OnlineUser {
+    pub username: String,
+    pub status: UserStatus,
 }
 
 #[cfg(test)]

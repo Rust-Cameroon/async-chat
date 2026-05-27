@@ -118,6 +118,7 @@ fn parse_command(input: &str) -> Result<FromClient, String> {
             }
             Ok(FromClient::Post {
                 group_name: Arc::new(group_name.to_string()),
+                author: Arc::new("CLI-User".to_string()),
                 message: Arc::new(message.to_string()),
             })
         }
@@ -141,12 +142,35 @@ async fn handle_replies(from_server: net::TcpStream) -> anyhow::Result<()> {
         match reply {
             FromServer::Message {
                 group_name,
+                author,
                 message,
             } => {
-                println!("message posted to {}: {}", group_name, message);
+                println!("{}: message posted to {}: {}", author, group_name, message);
             }
             FromServer::Error(error) => {
                 eprintln!("Error: {}", error);
+            }
+            FromServer::File { author, filename, .. } => {
+                println!("{}: posted file {}: (File data not shown in CLI)", author, filename);
+            }
+            FromServer::Voice { author, duration, .. } => {
+                println!("{}: posted voice message ({:.1}s) (Audio data not shown in CLI)", author, duration);
+            }
+            FromServer::Reaction { author, emoji, message_id, .. } => {
+                println!("{}: reacted with {} to message {}", author, emoji, message_id);
+            }
+            FromServer::Reply { author, message, reply_to_author, .. } => {
+                println!("{}: (replying to {}) {}", author, reply_to_author, message);
+            }
+            FromServer::GroupsList(list) => {
+                println!("Active groups: {}", list.join(", "));
+            }
+            FromServer::OnlineUsers { group_name, users } => {
+                let user_list: Vec<String> = users.iter().map(|u| u.username.clone()).collect();
+                println!("Online in {}: {}", group_name, user_list.join(", "));
+            }
+            FromServer::PresenceUpdate { username, status } => {
+                println!("{} is now {:?}", username, status);
             }
         }
     }
@@ -177,9 +201,11 @@ mod tests {
         match result.unwrap() {
             FromClient::Post {
                 group_name,
+                author,
                 message,
             } => {
                 assert_eq!(*group_name, "general".to_string());
+                assert_eq!(*author, "CLI-User".to_string());
                 assert_eq!(*message, "Hello world!".to_string());
             }
             _ => panic!("Expected Post command"),

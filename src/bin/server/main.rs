@@ -14,10 +14,7 @@ use std::sync::Arc;
 /// Accepts incoming TCP connections and spawns a task to handle each.
 /// Expects one argument: the address to bind to (e.g., `127.0.0.1:8080`)
 fn main() -> anyhow::Result<()> {
-    let address = std::env::args().nth(1).expect(
-        "Usage: server
-    ADDRESS",
-    );
+    let address = std::env::args().nth(1).expect("Usage: server ADDRESS");
     // A thread-safe table that stores all active chat groups by name.
     let chat_group_table = Arc::new(group_table::GroupTable::new());
     async_std::task::block_on(async {
@@ -27,8 +24,16 @@ fn main() -> anyhow::Result<()> {
         while let Some(socket_result) = new_connections.next().await {
             let socket = socket_result?;
             let groups = chat_group_table.clone();
-            task::spawn(async {
-                log_error(serve(socket, groups).await);
+            task::spawn(async move {
+                let ws_result = async_tungstenite::accept_async(socket).await;
+                match ws_result {
+                    Ok(ws) => {
+                        log_error(serve(ws, groups).await);
+                    }
+                    Err(e) => {
+                        eprintln!("WebSocket handshake error: {:?}", e);
+                    }
+                }
             });
         }
         Ok(())

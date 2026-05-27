@@ -1,1 +1,7 @@
 /target
+.claude
+/web-ui/target
+/web-ui/node_modules
+/web-ui/.env
+/web-ui/.env.local
+/web-ui/dist
