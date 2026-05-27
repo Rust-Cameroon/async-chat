@@ -1,4 +1,4 @@
-use crate::group_table::GroupTable;
+use crate::group_table::{CreateResult, GroupTable};
 use async_chat::utils::{self};
 use async_chat::{FromClient, FromServer};
 use async_std::io::BufReader;
@@ -36,6 +36,11 @@ impl Outbound {
     }
 }
 
+/// Sends a message to the client, returning a string error if it fails.
+async fn try_send(outbound: &Outbound, packet: FromServer) -> Result<(), String> {
+    outbound.send(packet).await.map_err(|e| e.to_string())
+}
+
 /// Serves a single client connection by reading messages and interacting with group state.
 ///
 /// # Arguments
@@ -57,11 +62,39 @@ pub async fn serve(socket: TcpStream, groups: Arc<GroupTable>) -> anyhow::Result
     let mut from_client = utils::receive_as_json(buffered);
     while let Some(request_result) = from_client.next().await {
         let request = request_result?;
-        let result = match request {
-            FromClient::Join { group_name } => {
-                let group = groups.get_or_create(group_name);
-                group.join(outbound.clone());
-                Ok(())
+        let result: Result<(), String> = match request {
+            FromClient::CreateGroup { group_name, password } => {
+                match groups.create(group_name.clone(), password) {
+                    CreateResult::Success => {
+                        let confirmation = FromServer::GroupCreated {
+                            group_name: group_name.clone(),
+                        };
+                        try_send(&outbound, confirmation).await
+                    }
+                    CreateResult::AlreadyExists => {
+                        Err(format!("Group '{}' already exists", group_name))
+                    }
+                }
+            }
+            FromClient::ListGroups => {
+                let group_list = groups.list_groups();
+                let response = FromServer::GroupList { groups: group_list };
+                try_send(&outbound, response).await
+            }
+            FromClient::Join { group_name, password } => {
+                match groups.get(&group_name) {
+                    Some(group) => {
+                        if group.verify_password(password.as_ref()) {
+                            group.join(outbound.clone());
+                            Ok(())
+                        } else {
+                            Err(format!("Incorrect password for group '{}'", group_name))
+                        }
+                    }
+                    None => {
+                        Err(format!("Group '{}' does not exist", group_name))
+                    }
+                }
             }
             FromClient::Post {
                 group_name,
@@ -78,7 +111,7 @@ pub async fn serve(socket: TcpStream, groups: Arc<GroupTable>) -> anyhow::Result
         if let Err(message) = result {
             let report = FromServer::Error(message);
             // send error back to client
-            outbound.send(report).await?;
+            let _ = outbound.send(report).await;
         }
     }
     Ok(())

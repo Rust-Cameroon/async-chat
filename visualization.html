@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Async Chat - Group Creation Visual Flow</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #0a0a0f; 
+            font-family: 'SF Mono', 'Monaco', monospace;
+            display: flex;
+            height: 100vh;
+        }
+        #canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        #sidebar {
+            width: 300px;
+            background: #12121a;
+            border-left: 1px solid #2a2a3a;
+            padding: 20px;
+            color: #e0e0f0;
+        }
+        h1 {
+            font-size: 14px;
+            color: #7ee787;
+            margin-bottom: 20px;
+            letter-spacing: 0.5px;
+        }
+        .control-group {
+            margin-bottom: 25px;
+        }
+        .control-group label {
+            display: block;
+            font-size: 11px;
+            color: #8b8b9f;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #1e1e2e;
+            border: 1px solid #3a3a4a;
+            color: #c0c0d0;
+            font-family: inherit;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #2e2e3e;
+            border-color: #5a5a6a;
+        }
+        button.primary {
+            background: #7ee787;
+            color: #0a0a0f;
+            border-color: #7ee787;
+            font-weight: 600;
+        }
+        button.primary:hover {
+            background: #5fc46a;
+        }
+        .status-line {
+            font-size: 10px;
+            color: #5a5a6a;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #2a2a3a;
+        }
+        .legend {
+            margin-top: 20px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 11px;
+            color: #a0a0b0;
+        }
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .legend-dot.server { background: #ff6b6b; box-shadow: 0 0 8px #ff6b6b; }
+        .legend-dot.group { background: #7ee787; box-shadow: 0 0 8px #7ee787; }
+        .legend-dot.client { background: #64b5f6; box-shadow: 0 0 8px #64b5f6; }
+        .legend-dot.message { background: #ffd93d; }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div id="sidebar">
+        <h1>// ASYNC CHAT VISUALIZER</h1>
+        
+        <div class="control-group">
+            <label>Group Management</label>
+            <button class="primary" onclick="triggerCreateGroup()">+ Create Group</button>
+            <button onclick="triggerJoinClient()">+ Join Client</button>
+        </div>
+        
+        <div class="control-group">
+            <label>Interactions</label>
+            <button onclick="triggerMessage()">→ Send Message</button>
+            <button onclick="resetScene()">↻ Reset Scene</button>
+        </div>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-dot server"></div>
+                <span>Server Node</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot group"></div>
+                <span>Chat Group</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot client"></div>
+                <span>Joined Client</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot message"></div>
+                <span>Message Flow</span>
+            </div>
+        </div>
+        
+        <div class="status-line" id="status">
+            Server: localhost:8000<br>
+            Status: Listening...
+        </div>
+    </div>
+
+    <script>
+        // Network Graph Visualization
+        let nodes = [];
+        let connections = [];
+        let particles = [];
+        let serverNode;
+        let nextGroupId = 0;
+        let nextClientId = 0;
+        
+        // Configuration
+        const SERVER_SIZE = 40;
+        const GROUP_SIZE = 25;
+        const CLIENT_SIZE = 15;
+        const SPRING_LENGTH = 150;
+        const REPULSION = 500;
+        
+        function setup() {
+            const container = document.getElementById('canvas-container');
+            const canvas = createCanvas(container.clientWidth, container.clientHeight);
+            canvas.parent('canvas-container');
+            
+            // Create server node at center
+            serverNode = new Node(width / 2, height / 2, SERVER_SIZE, 'server', 'Server:8000');
+            nodes.push(serverNode);
+            
+            textFont('SF Mono, Monaco, monospace');
+        }
+        
+        function windowResized() {
+            const container = document.getElementById('canvas-container');
+            resizeCanvas(container.clientWidth, container.clientHeight);
+            serverNode.pos.set(width / 2, height / 2);
+        }
+        
+        function draw() {
+            background(10, 10, 15, 200);
+            
+            // Apply force-directed layout
+            applyForces();
+            
+            // Draw connections (arborescent structure)
+            for (let conn of connections) {
+                conn.draw();
+            }
+            
+            // Update and draw particles (message flow)
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                particles[i].draw();
+                if (particles[i].finished) {
+                    particles.splice(i, 1);
+                }
+            }
+            
+            // Draw nodes
+            for (let node of nodes) {
+                node.update();
+                node.draw();
+            }
+        }
+        
+        class Node {
+            constructor(x, y, size, type, label) {
+                this.pos = createVector(x, y);
+                this.targetPos = createVector(x, y);
+                this.vel = createVector(0, 0);
+                this.size = size;
+                this.type = type;
+                this.label = label;
+                this.pulse = 0;
+                this.pulseSpeed = random(0.03, 0.08);
+            }
+            
+            update() {
+                // Smooth movement to target
+                let diff = p5.Vector.sub(this.targetPos, this.pos);
+                diff.mult(0.05);
+                this.pos.add(diff);
+                
+                // Keep server centered
+                if (this.type === 'server') {
+                    this.pos.set(width / 2, height / 2);
+                }
+                
+                // Pulse animation
+                this.pulse = sin(frameCount * this.pulseSpeed) * 5;
+            }
+            
+            draw() {
+                push();
+                translate(this.pos.x, this.pos.y);
+                
+                // Glow effect
+                let glowColor;
+                if (this.type === 'server') glowColor = color(255, 107, 107, 50);
+                else if (this.type === 'group') glowColor = color(126, 231, 135, 50);
+                else glowColor = color(100, 181, 246, 50);
+                
+                noStroke();
+                fill(glowColor);
+                ellipse(0, 0, this.size + this.pulse + 15);
+                fill(red(glowColor), green(glowColor), blue(glowColor), 80);
+                ellipse(0, 0, this.size + this.pulse + 25);
+                
+                // Core
+                if (this.type === 'server') fill(255, 107, 107);
+                else if (this.type === 'group') fill(126, 231, 135);
+                else fill(100, 181, 246);
+                
+                ellipse(0, 0, this.size);
+                
+                // Ripple effect on creation
+                if (frameCount < this.createdFrame + 60) {
+                    let rippleSize = map(frameCount - this.createdFrame, 0, 60, 0, 80);
+                    let rippleAlpha = map(frameCount - this.createdFrame, 0, 60, 255, 0);
+                    noFill();
+                    stroke(255, rippleAlpha * 0.5);
+                    strokeWeight(2);
+                    ellipse(0, 0, this.size + rippleSize);
+                }
+                
+                // Label
+                fill(224, 224, 240);
+                noStroke();
+                textSize(10);
+                textAlign(CENTER, CENTER);
+                text(this.label, 0, this.size + 15);
+                
+                pop();
+            }
+        }
+        Node.prototype.createdFrame = 0;
+        
+        class Connection {
+            constructor(from, to, type) {
+                this.from = from;
+                this.to = to;
+                this.type = type;
+                this.thickness = type === 'server-group' ? 2 : 1;
+            }
+            
+            draw() {
+                strokeWeight(this.thickness);
+                
+                if (this.type === 'server-group') {
+                    // Gradient from server to group
+                    let grad = drawingContext.createLinearGradient(
+                        this.from.pos.x, this.from.pos.y,
+                        this.to.pos.x, this.to.pos.y
+                    );
+                    grad.addColorStop(0, 'rgba(255, 107, 107, 0.6)');
+                    grad.addColorStop(1, 'rgba(126, 231, 135, 0.6)');
+                    drawingContext.strokeStyle = grad;
+                } else {
+                    stroke(100, 181, 246, 150);
+                }
+                
+                line(this.from.pos.x, this.from.pos.y, this.to.pos.x, this.to.pos.y);
+            }
+        }
+        
+        class MessageParticle {
+            constructor(start, end, color) {
+                this.pos = start.copy();
+                this.start = start.copy();
+                this.end = end.copy();
+                this.vel = createVector(0, 0);
+                this.progress = 0;
+                this.speed = 0.025;
+                this.finished = false;
+                this.color = color;
+                this.trail = [];
+            }
+            
+            update() {
+                this.progress += this.speed;
+                if (this.progress >= 1) {
+                    this.finished = true;
+                    // Ripple at destination
+                    createRipple(this.end.x, this.end.y, this.color);
+                }
+                
+                this.pos = p5.Vector.lerp(this.start, this.end, easeOutCubic(this.progress));
+                this.trail.push(this.pos.copy());
+                if (this.trail.length > 15) {
+                    this.trail.shift();
+                }
+            }
+            
+            draw() {
+                // Draw trail
+                noStroke();
+                for (let i = 0; i < this.trail.length; i++) {
+                    let alpha = map(i, 0, this.trail.length, 0, 255);
+                    fill(red(this.color), green(this.color), blue(this.color), alpha);
+                    let size = map(i, 0, this.trail.length, 2, 8);
+                    ellipse(this.trail[i].x, this.trail[i].y, size);
+                }
+                
+                // Draw particle
+                fill(this.color);
+                noStroke();
+                ellipse(this.pos.x, this.pos.y, 12);
+                fill(255, 100);
+                ellipse(this.pos.x, this.pos.y, 6);
+            }
+        }
+        
+        let ripples = [];
+        function createRipple(x, y, col) {
+            ripples.push({x, y, col, r: 0, alpha: 255});
+        }
+        
+        function easeOutCubic(t) {
+            return 1 - Math.pow(1 - t, 3);
+        }
+        
+        function applyForces() {
+            // Repulsion between all nodes
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    let n1 = nodes[i];
+                    let n2 = nodes[j];
+                    let dist = p5.Vector.sub(n1.pos, n2.pos);
+                    let d = dist.mag();
+                    if (d > 0 && d < 300) {
+                        dist.setMag(REPULSION / (d * d));
+                        if (n1.type !== 'server') {
+                            n1.targetPos.add(dist);
+                        }
+                        if (n2.type !== 'server') {
+                            n2.targetPos.sub(dist);
+                        }
+                    }
+                }
+            }
+            
+            // Spring forces along connections
+            for (let conn of connections) {
+                let dist = p5.Vector.sub(conn.to.targetPos, conn.from.targetPos);
+                let d = dist.mag();
+                let force = (d - SPRING_LENGTH) * 0.01;
+                dist.setMag(force);
+                
+                if (conn.from.type !== 'server') {
+                    conn.from.targetPos.add(dist);
+                }
+                if (conn.to.type !== 'server') {
+                    conn.to.targetPos.sub(dist);
+                }
+            }
+            
+            // Keep nodes within bounds
+            for (let node of nodes) {
+                if (node.type !== 'server') {
+                    node.targetPos.x = constrain(node.targetPos.x, 50, width - 50);
+                    node.targetPos.y = constrain(node.targetPos.y, 50, height - 50);
+                }
+            }
+        }
+        
+        // === Trigger Functions ===
+        
+        function triggerCreateGroup() {
+            // Create burst of particles from server
+            for (let a = 0; a < TWO_PI; a += PI / 4) {
+                let burstEnd = p5.Vector.fromAngle(a).mult(80).add(serverNode.pos);
+                particles.push(new MessageParticle(
+                    serverNode.pos.copy(),
+                    burstEnd,
+                    color(255, 107, 107)
+                ));
+            }
+            
+            setTimeout(() => {
+                let angle = random(TWO_PI);
+                let dist = random(120, 180);
+                let x = width / 2 + cos(angle) * dist;
+                let y = height / 2 + sin(angle) * dist;
+                
+                let groupNode = new Node(x, y, GROUP_SIZE, 'group', `Group-${nextGroupId++}`);
+                groupNode.createdFrame = frameCount;
+                nodes.push(groupNode);
+                
+                connections.push(new Connection(serverNode, groupNode, 'server-group'));
+                
+                updateStatus(`Group created: Group-${nextGroupId - 1}`);
+            }, 300);
+        }
+        
+        function triggerJoinClient() {
+            let groups = nodes.filter(n => n.type === 'group');
+            if (groups.length === 0) {
+                updateStatus('Error: No groups exist. Create a group first!');
+                return;
+            }
+            
+            let targetGroup = random(groups);
+            
+            // Particle animation from edge to group
+            let angle = random(TWO_PI);
+            let edgeDist = max(width, height) / 2 - 50;
+            let startX = width / 2 + cos(angle) * edgeDist;
+            let startY = height / 2 + sin(angle) * edgeDist;
+            
+            let clientNode = new Node(startX, startY, CLIENT_SIZE, 'client', `Client-${nextClientId++}`);
+            clientNode.createdFrame = frameCount;
+            nodes.push(clientNode);
+            
+            connections.push(new Connection(targetGroup, clientNode, 'group-client'));
+            
+            // Animated join
+            setTimeout(() => {
+                particles.push(new MessageParticle(
+                    createVector(startX, startY),
+                    targetGroup.pos.copy(),
+                    color(100, 181, 246)
+                ));
+            }, 100);
+            
+            updateStatus(`Client connected to ${targetGroup.label}`);
+        }
+        
+        function triggerMessage() {
+            // Find a group with clients
+            let groupClients = {};
+            for (let conn of connections) {
+                if (conn.type === 'group-client') {
+                    if (!groupClients[conn.from.label]) {
+                        groupClients[conn.from.label] = {group: conn.from, clients: []};
+                    }
+                    groupClients[conn.from.label].clients.push(conn.to);
+                }
+            }
+            
+            let groupsWithClients = Object.values(groupClients);
+            if (groupsWithClients.length === 0) {
+                updateStatus('Error: No clients to broadcast to!');
+                return;
+            }
+            
+            let gc = random(groupsWithClients);
+            let messageSource = gc.group;
+            
+            // Server sends message to group
+            particles.push(new MessageParticle(
+                serverNode.pos.copy(),
+                messageSource.pos.copy(),
+                color(255, 217, 61)
+            ));
+            
+            // Group broadcasts to all clients
+            setTimeout(() => {
+                for (let client of gc.clients) {
+                    particles.push(new MessageParticle(
+                        messageSource.pos.copy(),
+                        client.pos.copy(),
+                        color(255, 217, 61)
+                    ));
+                }
+                updateStatus(`Message broadcast to ${gc.clients.length} clients in ${messageSource.label}`);
+            }, 500);
+        }
+        
+        function resetScene() {
+            nodes = [serverNode];
+            connections = [];
+            particles = [];
+            nextGroupId = 0;
+            nextClientId = 0;
+            serverNode.pos.set(width / 2, height / 2);
+            serverNode.targetPos.set(width / 2, height / 2);
+            updateStatus('Scene reset');
+        }
+        
+        function updateStatus(msg) {
+            document.getElementById('status').innerHTML = 
+                `Server: localhost:8000<br>Status: ${msg}`;
+        }
+    </script>
+</body>
+</html>

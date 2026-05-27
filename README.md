@@ -12,13 +12,13 @@ Below is a high-level overview of the system:
 ## Existing Features
 
 - Asynchronous communication using Rust's async/await
-- Group-based chat system
+- Group-based chat system with optional password protection
+- Group creation and listing
+- Password-protected group joining
 - Multiple client support
 - Real-time message delivery
 
 ## Planned Features
-- Secure groups with passwords
-- Group creation and management
 - Secure message handling
 - WASM (WebAssembly) support
 
@@ -60,12 +60,57 @@ cargo run --release --bin server -- localhost:8000
 cargo run --release --bin client -- localhost:8000
 ```
 
-### Basic Workflow
+### Available Commands
 
-1. Start server
-2. Clients connect to the server
-3. Create and join a group on the server
-4. Start sending messages within the group
+Once connected to the server, you can use the following commands:
+
+- `/create <group_name> [password]` - Create a new chat group. Optionally provide a password to protect the group.
+- `/list` - List all available groups on the server.
+- `/join <group_name> [password]` - Join an existing group. Provide the password if the group is password-protected.
+- `/post <group_name> <message>` - Post a message to a group you have joined.
+- `/help` - Show help message with available commands.
+- `/quit` - Exit the client.
+
+### Example Workflow
+
+1. Start the server:
+   ```bash
+   cargo run --release --bin server -- localhost:8000
+   ```
+
+2. Connect client 1 and create a group:
+   ```
+   /create general
+   ```
+
+3. Connect client 2 and list groups:
+   ```
+   /list
+   ```
+
+4. Join the group from client 2:
+   ```
+   /join general
+   ```
+
+5. Post messages:
+   ```
+   /post general Hello everyone!
+   ```
+
+### Password-Protected Groups
+
+To create a password-protected group:
+```
+/create privategroup mysecretpassword
+```
+
+To join a password-protected group, the password is required:
+```
+/join privategroup mysecretpassword
+```
+
+Note: Attempting to join a password-protected group without the correct password will result in an error.
 
 
 ## Contributing

@@ -8,19 +8,49 @@ use tokio::sync::broadcast;
 /// A named group that broadcasts messages to all connected subscribers.
 pub struct Group {
     name: Arc<String>,
+    password: Option<Arc<String>>,
     sender: broadcast::Sender<Arc<String>>,
 }
 
 impl Group {
-    /// Creates a new `Group` with a given name.
+    /// Creates a new `Group` with a given name and optional password.
     ///
     /// # Arguments
     ///
     /// * `name` - The name of the group.
-    pub fn new(name: Arc<String>) -> Group {
+    /// * `password` - Optional password for the group.
+    pub fn new(name: Arc<String>, password: Option<Arc<String>>) -> Group {
         let (sender, _receiver) = broadcast::channel(1000); // buffer size of 1000 messages
-        Group { name, sender }
+        Group { name, password, sender }
     }
+
+    /// Returns whether the group has a password set.
+    pub fn is_password_protected(&self) -> bool {
+        self.password.is_some()
+    }
+
+    /// Verifies the provided password against the group password.
+    ///
+    /// # Arguments
+    ///
+    /// * `password` - The password to verify.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the password matches or group is not password protected,
+    /// `false` otherwise.
+    pub fn verify_password(&self, password: Option<&Arc<String>>) -> bool {
+        match &self.password {
+            None => true, // Group is not password protected
+            Some(expected) => {
+                match password {
+                    Some(provided) => expected.as_str() == provided.as_str(),
+                    None => false, // Password required but not provided
+                }
+            }
+        }
+    }
+
     /// Adds a client connection to the group and starts sending messages to it.
     ///
     /// # Arguments

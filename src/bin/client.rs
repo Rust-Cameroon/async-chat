@@ -33,7 +33,9 @@ fn main() -> anyhow::Result<()> {
 /// Reads user input and sends commands to the server.
 ///
 /// Commands:
-/// - `/join <group_name>` - Join a chat group
+/// - `/create <group_name> [password]` - Create a new chat group
+/// - `/list` - List available groups
+/// - `/join <group_name> [password]` - Join a chat group
 /// - `/post <group_name> <message>` - Post a message to a group
 /// - `/help` - Show help message
 /// - `/quit` - Exit the client
@@ -41,10 +43,12 @@ async fn send_commands(to_server: net::TcpStream) -> anyhow::Result<()> {
     let mut to_server = to_server;
     println!("Welcome to Async Chat!");
     println!("Commands:");
-    println!("  /join <group_name>     - Join a chat group");
-    println!("  /post <group_name> <message> - Post a message to a group");
-    println!("  /help                  - Show this help message");
-    println!("  /quit                  - Exit the client");
+    println!("  /create <group_name> [password] - Create a new chat group");
+    println!("  /list                           - List available groups");
+    println!("  /join <group_name> [password]     - Join a chat group");
+    println!("  /post <group_name> <message>    - Post a message to a group");
+    println!("  /help                           - Show this help message");
+    println!("  /quit                           - Exit the client");
     println!();
 
     let stdin = BufReader::new(stdin());
@@ -65,10 +69,12 @@ async fn send_commands(to_server: net::TcpStream) -> anyhow::Result<()> {
 
         if line == "/help" {
             println!("Commands:");
-            println!("  /join <group_name>     - Join a chat group");
-            println!("  /post <group_name> <message> - Post a message to a group");
-            println!("  /help                  - Show this help message");
-            println!("  /quit                  - Exit the client");
+            println!("  /create <group_name> [password] - Create a new chat group");
+            println!("  /list                           - List available groups");
+            println!("  /join <group_name> [password]     - Join a chat group");
+            println!("  /post <group_name> <message>    - Post a message to a group");
+            println!("  /help                           - Show this help message");
+            println!("  /quit                           - Exit the client");
             continue;
         }
 
@@ -98,32 +104,77 @@ async fn send_commands(to_server: net::TcpStream) -> anyhow::Result<()> {
 /// # Returns
 /// A Result containing either a FromClient message or an error string
 fn parse_command(input: &str) -> Result<FromClient, String> {
-    let parts: Vec<&str> = input.splitn(3, ' ').collect();
+    let parts: Vec<&str> = input.split_whitespace().collect();
+
+    if parts.is_empty() {
+        return Err("Empty command".to_string());
+    }
 
     match parts.as_slice() {
+        ["/create"] => Err("Usage: /create <group_name> [password]".to_string()),
+        ["/create", group_name] if group_name.is_empty() => {
+            Err("Group name cannot be empty".to_string())
+        }
+        ["/create", group_name] => {
+            Ok(FromClient::CreateGroup {
+                group_name: Arc::new(group_name.to_string()),
+                password: None,
+            })
+        }
+        ["/create", group_name, password, ..] => {
+            if group_name.is_empty() {
+                return Err("Group name cannot be empty".to_string());
+            }
+            // Combine remaining parts as password (in case password contains spaces)
+            let password_parts = &parts[2..];
+            let password = password_parts.join(" ");
+            Ok(FromClient::CreateGroup {
+                group_name: Arc::new(group_name.to_string()),
+                password: Some(Arc::new(password)),
+            })
+        }
+        ["/list"] => {
+            Ok(FromClient::ListGroups)
+        }
+        ["/join"] => Err("Usage: /join <group_name> [password]".to_string()),
         ["/join", group_name] => {
             if group_name.is_empty() {
                 return Err("Group name cannot be empty".to_string());
             }
             Ok(FromClient::Join {
                 group_name: Arc::new(group_name.to_string()),
+                password: None,
             })
         }
-        ["/post", group_name, message] => {
+        ["/join", group_name, password, ..] => {
             if group_name.is_empty() {
                 return Err("Group name cannot be empty".to_string());
             }
-            if message.is_empty() {
+            // Combine remaining parts as password (in case password contains spaces)
+            let password_parts = &parts[2..];
+            let password = password_parts.join(" ");
+            Ok(FromClient::Join {
+                group_name: Arc::new(group_name.to_string()),
+                password: Some(Arc::new(password)),
+            })
+        }
+        ["/post"] => Err("Usage: /post <group_name> <message>".to_string()),
+        ["/post", group_name] => Err("Usage: /post <group_name> <message>".to_string()),
+        ["/post", group_name, message, ..] => {
+            if group_name.is_empty() {
+                return Err("Group name cannot be empty".to_string());
+            }
+            // Combine remaining parts as message
+            let message_parts = &parts[2..];
+            let combined_message = message_parts.join(" ");
+            if combined_message.is_empty() {
                 return Err("Message cannot be empty".to_string());
             }
             Ok(FromClient::Post {
                 group_name: Arc::new(group_name.to_string()),
-                message: Arc::new(message.to_string()),
+                message: Arc::new(combined_message.to_string()),
             })
         }
-        ["/join"] => Err("Usage: /join <group_name>".to_string()),
-        ["/post"] => Err("Usage: /post <group_name> <message>".to_string()),
-        ["/post", _] => Err("Usage: /post <group_name> <message>".to_string()),
         _ => Err(format!(
             "Unknown command: '{}'. Type /help for available commands.",
             input
@@ -139,14 +190,27 @@ async fn handle_replies(from_server: net::TcpStream) -> anyhow::Result<()> {
     while let Some(reply) = reply_stream.next().await {
         let reply = reply?;
         match reply {
+            FromServer::GroupCreated { group_name } => {
+                println!("Group '{}' created successfully", group_name);
+            }
+            FromServer::GroupList { groups } => {
+                if groups.is_empty() {
+                    println!("No groups available.");
+                } else {
+                    println!("Available groups:");
+                    for group in groups {
+                        println!("  - {}", group);
+                    }
+                }
+            }
             FromServer::Message {
                 group_name,
                 message,
             } => {
-                println!("message posted to {}: {}", group_name, message);
+                println!("[{}]: {}", group_name, message);
             }
             FromServer::Error(error) => {
-                eprintln!("Error: {}", error);
+                eprintln!("Error from server: {}", error);
             }
         }
     }
@@ -163,10 +227,62 @@ mod tests {
         let result = parse_command("/join general");
         assert!(result.is_ok());
         match result.unwrap() {
-            FromClient::Join { group_name } => {
+            FromClient::Join { group_name, password } => {
                 assert_eq!(*group_name, "general".to_string());
+                assert!(password.is_none());
             }
             _ => panic!("Expected Join command"),
+        }
+    }
+
+    #[test]
+    fn test_parse_join_with_password() {
+        let result = parse_command("/join secure secret123");
+        assert!(result.is_ok());
+        match result.unwrap() {
+            FromClient::Join { group_name, password } => {
+                assert_eq!(*group_name, "secure".to_string());
+                assert_eq!(password.as_ref().map(|p| p.as_str()), Some("secret123"));
+            }
+            _ => panic!("Expected Join command"),
+        }
+    }
+
+    #[test]
+    fn test_parse_create_command() {
+        let result = parse_command("/create newgroup");
+        assert!(result.is_ok());
+        match result.unwrap() {
+            FromClient::CreateGroup { group_name, password } => {
+                assert_eq!(*group_name, "newgroup".to_string());
+                assert!(password.is_none());
+            }
+            _ => panic!("Expected CreateGroup command"),
+        }
+    }
+
+    #[test]
+    fn test_parse_create_with_password() {
+        let result = parse_command("/create mygroup super secret");
+        assert!(result.is_ok());
+        match result.unwrap() {
+            FromClient::CreateGroup { group_name, password } => {
+                assert_eq!(*group_name, "mygroup".to_string());
+                assert_eq!(password.as_ref().map(|p| p.as_str()), Some("super secret"));
+            }
+            _ => panic!("Expected CreateGroup command"),
+        }
+    }
+
+    #[test]
+    fn test_parse_list_command() {
+        let result = parse_command("/list");
+        assert!(result.is_ok());
+        match result.unwrap() {
+            FromClient::ListGroups => {
+                // Success
+            }
+            _ => panic!("Expected ListGroups command"),
         }
     }
 
@@ -197,7 +313,7 @@ mod tests {
     fn test_parse_join_without_group() {
         let result = parse_command("/join");
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "Usage: /join <group_name>");
+        assert_eq!(result.unwrap_err(), "Usage: /join <group_name> [password]");
     }
 
     #[test]
@@ -212,5 +328,12 @@ mod tests {
         let result = parse_command("/post");
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "Usage: /post <group_name> <message>");
+    }
+
+    #[test]
+    fn test_parse_create_without_group() {
+        let result = parse_command("/create");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Usage: /create <group_name> [password]");
     }
 }

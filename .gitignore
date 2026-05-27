@@ -1,1 +1,8 @@
 /target
+.codex/
+.pair-shared/
+.codex-home/
+.codex-home/shell_snapshots/
+.pair-shared/.codex/
+.claude/
+.env.local
